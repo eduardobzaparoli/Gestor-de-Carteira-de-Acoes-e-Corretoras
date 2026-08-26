@@ -23,7 +23,7 @@ Antes de planejar ou implementar funcionalidades que afetem requisitos do produt
 
 ## Diretrizes de desenvolvimento
 
-- Siga a arquitetura em camadas: Controller, Service, Repository, Entity e DTO.
+- Siga a arquitetura em camadas: Domain, Mapper, Controller, Service, Repository, Entity e DTO.
 - Mantenha regras de negócio na camada Service.
 - Use DTOs nas entradas e saídas da API.
 - Retorne respostas da API em JSON.

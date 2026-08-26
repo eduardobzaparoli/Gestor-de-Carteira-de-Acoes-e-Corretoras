@@ -48,5 +48,5 @@ O sistema é uma API RESTful em Java com Spring Boot para gestão de investiment
 - **Resiliência e Padrões de Código:**
   - Tratamento centralizado de erros (`@ControllerAdvice`).
   - Tratamento de falhas de rede (APIs fora do ar, limites de requisição excedidos, ticker/CNPJ inexistente).
-  - Arquitetura em camadas (Controller, Service, Repository, Entity, DTO) aplicando princípios SOLID.
+  - Arquitetura em camadas (Domain, Mapper, Controller, Service, Repository, Entity, DTO) aplicando princípios SOLID.
   - Retornos da API exclusivamente em formato JSON.

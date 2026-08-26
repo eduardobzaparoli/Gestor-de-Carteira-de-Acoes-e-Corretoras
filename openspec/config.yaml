@@ -4,7 +4,7 @@ context: |
   Produto: API REST para gestão de carteiras de ações e corretoras.
   Requisitos globais: docs/product-spec.md.
   Stack: Java 17, Spring Boot, Maven, H2 para desenvolvimento e PostgreSQL para produção.
-  Arquitetura: Controller, Service, Repository, Entity e DTO.
+  Arquitetura: Domain, Mapper, Controller, Service, Repository, Entity e DTO.
   Padrões principais: Strategy para integrações externas e State para o ciclo de vida dos lançamentos.
   APIs devem retornar JSON e utilizar tratamento centralizado de erros com @ControllerAdvice.
   Antes de criar artefatos que envolvam requisitos do produto, consulte docs/product-spec.md.
