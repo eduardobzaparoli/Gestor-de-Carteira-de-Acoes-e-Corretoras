@@ -12,6 +12,8 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 
 import com.bominvestidor.spring.dto.error.ApiErrorResponse;
 import com.bominvestidor.spring.dto.error.FieldErrorResponse;
@@ -41,6 +43,13 @@ public class GlobalExceptionHandler {
 				request.getRequestURI(), List.of(new FieldErrorResponse(exception.getField(), exception.getMessage())));
 	}
 
+	@ExceptionHandler(InvalidBrokerageDataException.class)
+	ResponseEntity<ApiErrorResponse> handleInvalidBrokerageData(InvalidBrokerageDataException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Request validation failed",
+				request.getRequestURI(), exception.getFieldErrors());
+	}
+
 	@ExceptionHandler(HttpMessageNotReadableException.class)
 	ResponseEntity<ApiErrorResponse> handleUnreadableMessage(HttpMessageNotReadableException exception,
 			HttpServletRequest request) {
@@ -52,6 +61,44 @@ public class GlobalExceptionHandler {
 	ResponseEntity<ApiErrorResponse> handleDuplicateEmail(DuplicateEmailException exception,
 			HttpServletRequest request) {
 		return response(HttpStatus.CONFLICT, "EMAIL_ALREADY_REGISTERED", exception.getMessage(),
+				request.getRequestURI(), List.of());
+	}
+
+	@ExceptionHandler(MissingServletRequestParameterException.class)
+	ResponseEntity<ApiErrorResponse> handleMissingRequestParameter(MissingServletRequestParameterException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Request validation failed", request.getRequestURI(),
+				List.of(new FieldErrorResponse(exception.getParameterName(), "Parameter is required")));
+	}
+
+	@ExceptionHandler(BrokerageConflictException.class)
+	ResponseEntity<ApiErrorResponse> handleBrokerageConflict(BrokerageConflictException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.CONFLICT, exception.getCode(), exception.getMessage(), request.getRequestURI(), List.of());
+	}
+
+	@ExceptionHandler(BrokerageRuleException.class)
+	ResponseEntity<ApiErrorResponse> handleBrokerageRule(BrokerageRuleException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.UNPROCESSABLE_ENTITY, exception.getCode(), exception.getMessage(),
+				request.getRequestURI(), List.of());
+	}
+
+	@ExceptionHandler(BrokerageProviderUnavailableException.class)
+	ResponseEntity<ApiErrorResponse> handleBrokerageProviderUnavailable(BrokerageProviderUnavailableException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.SERVICE_UNAVAILABLE, exception.getCode(), exception.getMessage(),
+				request.getRequestURI(), List.of());
+	}
+
+	@ExceptionHandler(CepNotFoundException.class)
+	ResponseEntity<ApiErrorResponse> handleCepNotFound(CepNotFoundException exception, HttpServletRequest request) {
+		return response(HttpStatus.NOT_FOUND, "CEP_NOT_FOUND", exception.getMessage(), request.getRequestURI(), List.of());
+	}
+
+	@ExceptionHandler(AccessDeniedException.class)
+	ResponseEntity<ApiErrorResponse> handleAccessDenied(AccessDeniedException exception, HttpServletRequest request) {
+		return response(HttpStatus.FORBIDDEN, "FORBIDDEN", "You do not have permission to access this resource",
 				request.getRequestURI(), List.of());
 	}
 
