@@ -50,6 +50,13 @@ public class GlobalExceptionHandler {
 				request.getRequestURI(), exception.getFieldErrors());
 	}
 
+	@ExceptionHandler(InvalidPortfolioDataException.class)
+	ResponseEntity<ApiErrorResponse> handleInvalidPortfolioData(InvalidPortfolioDataException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Request validation failed",
+				request.getRequestURI(), exception.getFieldErrors());
+	}
+
 	@ExceptionHandler(HttpMessageNotReadableException.class)
 	ResponseEntity<ApiErrorResponse> handleUnreadableMessage(HttpMessageNotReadableException exception,
 			HttpServletRequest request) {
@@ -75,6 +82,24 @@ public class GlobalExceptionHandler {
 	ResponseEntity<ApiErrorResponse> handleBrokerageConflict(BrokerageConflictException exception,
 			HttpServletRequest request) {
 		return response(HttpStatus.CONFLICT, exception.getCode(), exception.getMessage(), request.getRequestURI(), List.of());
+	}
+
+	@ExceptionHandler(PortfolioConflictException.class)
+	ResponseEntity<ApiErrorResponse> handlePortfolioConflict(PortfolioConflictException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.CONFLICT, exception.getCode(), exception.getMessage(), request.getRequestURI(), List.of());
+	}
+
+	@ExceptionHandler(BrokerageNotFoundException.class)
+	ResponseEntity<ApiErrorResponse> handleBrokerageNotFound(BrokerageNotFoundException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.NOT_FOUND, "BROKERAGE_NOT_FOUND", exception.getMessage(), request.getRequestURI(), List.of());
+	}
+
+	@ExceptionHandler(PortfolioNotFoundException.class)
+	ResponseEntity<ApiErrorResponse> handlePortfolioNotFound(PortfolioNotFoundException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.NOT_FOUND, "PORTFOLIO_NOT_FOUND", exception.getMessage(), request.getRequestURI(), List.of());
 	}
 
 	@ExceptionHandler(BrokerageRuleException.class)
