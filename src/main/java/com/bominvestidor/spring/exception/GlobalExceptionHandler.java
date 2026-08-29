@@ -57,6 +57,13 @@ public class GlobalExceptionHandler {
 				request.getRequestURI(), exception.getFieldErrors());
 	}
 
+	@ExceptionHandler(InvalidAssetSearchDataException.class)
+	ResponseEntity<ApiErrorResponse> handleInvalidAssetSearchData(InvalidAssetSearchDataException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Request validation failed",
+				request.getRequestURI(), exception.getFieldErrors());
+	}
+
 	@ExceptionHandler(HttpMessageNotReadableException.class)
 	ResponseEntity<ApiErrorResponse> handleUnreadableMessage(HttpMessageNotReadableException exception,
 			HttpServletRequest request) {
@@ -111,6 +118,13 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(BrokerageProviderUnavailableException.class)
 	ResponseEntity<ApiErrorResponse> handleBrokerageProviderUnavailable(BrokerageProviderUnavailableException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.SERVICE_UNAVAILABLE, exception.getCode(), exception.getMessage(),
+				request.getRequestURI(), List.of());
+	}
+
+	@ExceptionHandler(AssetProviderUnavailableException.class)
+	ResponseEntity<ApiErrorResponse> handleAssetProviderUnavailable(AssetProviderUnavailableException exception,
 			HttpServletRequest request) {
 		return response(HttpStatus.SERVICE_UNAVAILABLE, exception.getCode(), exception.getMessage(),
 				request.getRequestURI(), List.of());

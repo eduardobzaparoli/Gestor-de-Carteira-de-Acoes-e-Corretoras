@@ -67,6 +67,11 @@ public class PortfolioService {
 		persistenceService.deleteByIdAndOwner(id, ownerId);
 	}
 
+	public void requireOwnedPortfolio(UUID ownerId, UUID portfolioId) {
+		requireInvestor(ownerId);
+		persistenceService.findEntityByIdAndOwner(portfolioId, ownerId);
+	}
+
 	private PortfolioResponse toResponse(PortfolioEntity entity) {
 		return mapper.toResponse(mapper.toDomain(entity), entity.getBrokerage());
 	}

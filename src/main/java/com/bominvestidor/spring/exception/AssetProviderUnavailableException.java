@@ -1,0 +1,12 @@
+package com.bominvestidor.spring.exception;
+
+public class AssetProviderUnavailableException extends RuntimeException {
+	private final String code;
+
+	public AssetProviderUnavailableException(String code, String message) {
+		super(message);
+		this.code = code;
+	}
+
+	public String getCode() { return code; }
+}
