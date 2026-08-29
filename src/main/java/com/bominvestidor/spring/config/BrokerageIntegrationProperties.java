@@ -15,6 +15,12 @@ public class BrokerageIntegrationProperties {
 	private Duration cvmCacheTtl = Duration.ofHours(24);
 	private String cvmActiveStatus = "EM FUNCIONAMENTO NORMAL";
 	private long cvmMaxSnapshotBytes = 10_000_000L;
+	private String brapiBaseUrl = "https://brapi.dev";
+	private String brapiToken = "";
+	private String alphaVantageBaseUrl = "https://www.alphavantage.co";
+	private String alphaVantageApiKey = "";
+	private Duration assetSearchCacheTtl = Duration.ofMinutes(5);
+	private Duration assetQuoteCacheTtl = Duration.ofMinutes(1);
 
 	public String getBrasilApiBaseUrl() {
 		return brasilApiBaseUrl;
@@ -79,4 +85,17 @@ public class BrokerageIntegrationProperties {
 	public void setCvmMaxSnapshotBytes(long cvmMaxSnapshotBytes) {
 		this.cvmMaxSnapshotBytes = cvmMaxSnapshotBytes;
 	}
+
+	public String getBrapiBaseUrl() { return brapiBaseUrl; }
+	public void setBrapiBaseUrl(String brapiBaseUrl) { this.brapiBaseUrl = brapiBaseUrl; }
+	public String getBrapiToken() { return brapiToken; }
+	public void setBrapiToken(String brapiToken) { this.brapiToken = brapiToken; }
+	public String getAlphaVantageBaseUrl() { return alphaVantageBaseUrl; }
+	public void setAlphaVantageBaseUrl(String alphaVantageBaseUrl) { this.alphaVantageBaseUrl = alphaVantageBaseUrl; }
+	public String getAlphaVantageApiKey() { return alphaVantageApiKey; }
+	public void setAlphaVantageApiKey(String alphaVantageApiKey) { this.alphaVantageApiKey = alphaVantageApiKey; }
+	public Duration getAssetSearchCacheTtl() { return assetSearchCacheTtl; }
+	public void setAssetSearchCacheTtl(Duration assetSearchCacheTtl) { this.assetSearchCacheTtl = assetSearchCacheTtl; }
+	public Duration getAssetQuoteCacheTtl() { return assetQuoteCacheTtl; }
+	public void setAssetQuoteCacheTtl(Duration assetQuoteCacheTtl) { this.assetQuoteCacheTtl = assetQuoteCacheTtl; }
 }

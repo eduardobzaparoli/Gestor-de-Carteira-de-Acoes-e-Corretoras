@@ -29,6 +29,16 @@ public class BrokerageIntegrationConfig {
 				.build();
 	}
 
+	@Bean("brapiRestClient")
+	RestClient brapiRestClient(BrokerageIntegrationProperties properties) {
+		return client(properties.getBrapiBaseUrl(), properties.getConnectTimeout(), properties.getReadTimeout());
+	}
+
+	@Bean("alphaVantageRestClient")
+	RestClient alphaVantageRestClient(BrokerageIntegrationProperties properties) {
+		return client(properties.getAlphaVantageBaseUrl(), properties.getConnectTimeout(), properties.getReadTimeout());
+	}
+
 	private RestClient client(String baseUrl, Duration connectTimeout, Duration readTimeout) {
 		return RestClient.builder()
 				.baseUrl(baseUrl)
