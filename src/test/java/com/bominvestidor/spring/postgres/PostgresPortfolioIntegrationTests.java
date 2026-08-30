@@ -42,6 +42,7 @@ import com.bominvestidor.spring.repository.user.UserRepository;
 import com.bominvestidor.spring.service.auth.AuthService;
 import com.bominvestidor.spring.service.asset.AssetSearchService;
 import com.bominvestidor.spring.service.portfolio.PortfolioService;
+import com.bominvestidor.spring.service.position.PortfolioPositionService;
 import com.bominvestidor.spring.service.transaction.PortfolioTransactionService;
 
 @SpringBootTest
@@ -58,6 +59,7 @@ class PostgresPortfolioIntegrationTests {
 	@Autowired private AssetSearchService assetSearchService;
 	@Autowired private JdbcTemplate jdbcTemplate;
 	@Autowired private PortfolioTransactionService transactionService;
+	@Autowired private PortfolioPositionService positionService;
 
 	@Test
 	void initializesSchemaAndSupportsPortfolioLifecycle() {
@@ -92,6 +94,8 @@ class PostgresPortfolioIntegrationTests {
 					new BigDecimal("35.10"), null));
 			assertEquals(1, jdbcTemplate.queryForObject(
 					"select count(*) from portfolio_transactions where portfolio_id = ?", Integer.class, portfolioId));
+			assertEquals(0, new BigDecimal("35.10").compareTo(positionService.findAll(userId, portfolioId).get(0).averagePrice()));
+			assertEquals(List.of(), positionPersistenceTables());
 			assertThrows(PortfolioConflictException.class, () -> portfolioService.delete(userId, createdPortfolioId));
 			deleteTransactions(portfolioId);
 
@@ -125,6 +129,14 @@ class PostgresPortfolioIntegrationTests {
 				from information_schema.tables
 				where table_schema = 'public'
 				  and (lower(table_name) like '%asset%' or lower(table_name) like '%quote%')
+				order by table_name
+				""", String.class);
+	}
+
+	private List<String> positionPersistenceTables() {
+		return jdbcTemplate.queryForList("""
+				select table_name from information_schema.tables
+				where table_schema = 'public' and lower(table_name) like '%position%'
 				order by table_name
 				""", String.class);
 	}
