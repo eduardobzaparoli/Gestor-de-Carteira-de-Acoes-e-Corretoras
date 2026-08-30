@@ -16,6 +16,7 @@ import com.bominvestidor.spring.exception.PortfolioConflictException;
 import com.bominvestidor.spring.exception.PortfolioNotFoundException;
 import com.bominvestidor.spring.mapper.portfolio.PortfolioMapper;
 import com.bominvestidor.spring.repository.portfolio.PortfolioRepository;
+import com.bominvestidor.spring.repository.transaction.PortfolioTransactionRepository;
 
 @Service
 public class PortfolioPersistenceService {
@@ -24,10 +25,12 @@ public class PortfolioPersistenceService {
 
 	private final PortfolioRepository portfolioRepository;
 	private final PortfolioMapper mapper;
+	private final PortfolioTransactionRepository transactionRepository;
 
-	public PortfolioPersistenceService(PortfolioRepository portfolioRepository, PortfolioMapper mapper) {
+	public PortfolioPersistenceService(PortfolioRepository portfolioRepository, PortfolioMapper mapper, PortfolioTransactionRepository transactionRepository) {
 		this.portfolioRepository = portfolioRepository;
 		this.mapper = mapper;
+		this.transactionRepository = transactionRepository;
 	}
 
 	@Transactional
@@ -58,7 +61,11 @@ public class PortfolioPersistenceService {
 
 	@Transactional
 	public void deleteByIdAndOwner(UUID id, UUID ownerId) {
-		portfolioRepository.delete(findEntityByIdAndOwner(id, ownerId));
+		PortfolioEntity portfolio = findEntityByIdAndOwner(id, ownerId);
+		if (transactionRepository.existsByPortfolio_Id(portfolio.getId())) {
+			throw new PortfolioConflictException("PORTFOLIO_HAS_TRANSACTIONS", "Portfolio has transaction history");
+		}
+		portfolioRepository.delete(portfolio);
 	}
 
 	private PortfolioConflictException duplicateName() {

@@ -68,8 +68,12 @@ public class PortfolioService {
 	}
 
 	public void requireOwnedPortfolio(UUID ownerId, UUID portfolioId) {
+		ownedPortfolio(ownerId, portfolioId);
+	}
+
+	public PortfolioEntity ownedPortfolio(UUID ownerId, UUID portfolioId) {
 		requireInvestor(ownerId);
-		persistenceService.findEntityByIdAndOwner(portfolioId, ownerId);
+		return persistenceService.findEntityByIdAndOwner(portfolioId, ownerId);
 	}
 
 	private PortfolioResponse toResponse(PortfolioEntity entity) {

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,9 +28,12 @@ import com.bominvestidor.spring.domain.asset.AssetType;
 import com.bominvestidor.spring.domain.user.UserRole;
 import com.bominvestidor.spring.dto.auth.RegisterRequest;
 import com.bominvestidor.spring.dto.portfolio.PortfolioCreateRequest;
+import com.bominvestidor.spring.dto.transaction.PortfolioTransactionCreateRequest;
+import com.bominvestidor.spring.domain.transaction.TransactionType;
 import com.bominvestidor.spring.entity.brokerage.BrokerageEntity;
 import com.bominvestidor.spring.entity.user.UserEntity;
 import com.bominvestidor.spring.exception.PortfolioNotFoundException;
+import com.bominvestidor.spring.exception.PortfolioConflictException;
 import com.bominvestidor.spring.integration.asset.AssetSearchStrategy;
 import com.bominvestidor.spring.integration.asset.AssetSearchStrategyResolver;
 import com.bominvestidor.spring.repository.brokerage.BrokerageRepository;
@@ -38,6 +42,7 @@ import com.bominvestidor.spring.repository.user.UserRepository;
 import com.bominvestidor.spring.service.auth.AuthService;
 import com.bominvestidor.spring.service.asset.AssetSearchService;
 import com.bominvestidor.spring.service.portfolio.PortfolioService;
+import com.bominvestidor.spring.service.transaction.PortfolioTransactionService;
 
 @SpringBootTest
 @ActiveProfiles("postgres")
@@ -52,6 +57,7 @@ class PostgresPortfolioIntegrationTests {
 	@Autowired private UserRepository userRepository;
 	@Autowired private AssetSearchService assetSearchService;
 	@Autowired private JdbcTemplate jdbcTemplate;
+	@Autowired private PortfolioTransactionService transactionService;
 
 	@Test
 	void initializesSchemaAndSupportsPortfolioLifecycle() {
@@ -68,7 +74,8 @@ class PostgresPortfolioIntegrationTests {
 
 			var created = portfolioService.create(userId, new PortfolioCreateRequest("Carteira PostgreSQL", brokerage.getId()));
 			portfolioId = created.id();
-			assertEquals("Carteira PostgreSQL", portfolioService.findById(userId, portfolioId).name());
+			UUID createdPortfolioId = portfolioId;
+			assertEquals("Carteira PostgreSQL", portfolioService.findById(userId, createdPortfolioId).name());
 			assertEquals(1, portfolioService.findAll(userId).size());
 
 			List<String> assetTablesBefore = assetPersistenceTables();
@@ -80,13 +87,23 @@ class PostgresPortfolioIntegrationTests {
 			assertEquals(assetTablesBefore, assetPersistenceTables());
 			assertEquals(persistedRowsBefore, persistedRows());
 
+			transactionService.create(userId, portfolioId, new PortfolioTransactionCreateRequest("PETR4", "Petrobras PN",
+					AssetMarket.BR, AssetType.STOCK, "BRL", TransactionType.BUY, LocalDate.now(), new BigDecimal("2"),
+					new BigDecimal("35.10"), null));
+			assertEquals(1, jdbcTemplate.queryForObject(
+					"select count(*) from portfolio_transactions where portfolio_id = ?", Integer.class, portfolioId));
+			assertThrows(PortfolioConflictException.class, () -> portfolioService.delete(userId, createdPortfolioId));
+			deleteTransactions(portfolioId);
+
 			portfolioService.delete(userId, portfolioId);
 			UUID deletedPortfolioId = portfolioId;
 			assertThrows(PortfolioNotFoundException.class,
 					() -> portfolioService.findById(userId, deletedPortfolioId));
+			portfolioId = null;
 		}
 		finally {
 			if (portfolioId != null) {
+				deleteTransactions(portfolioId);
 				portfolioRepository.deleteById(portfolioId);
 			}
 			if (brokerage != null) {
@@ -96,6 +113,10 @@ class PostgresPortfolioIntegrationTests {
 				userRepository.deleteById(user.getId());
 			}
 		}
+	}
+
+	private void deleteTransactions(UUID portfolioId) {
+		jdbcTemplate.update("delete from portfolio_transactions where portfolio_id = ?", portfolioId);
 	}
 
 	private List<String> assetPersistenceTables() {
