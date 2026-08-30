@@ -142,6 +142,13 @@ public class GlobalExceptionHandler {
 				request.getRequestURI(), List.of());
 	}
 
+	@ExceptionHandler(AssetQuoteUnavailableException.class)
+	ResponseEntity<ApiErrorResponse> handleAssetQuoteUnavailable(AssetQuoteUnavailableException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.SERVICE_UNAVAILABLE, "ASSET_QUOTE_UNAVAILABLE", exception.getMessage(),
+				request.getRequestURI(), List.of());
+	}
+
 	@ExceptionHandler(CepNotFoundException.class)
 	ResponseEntity<ApiErrorResponse> handleCepNotFound(CepNotFoundException exception, HttpServletRequest request) {
 		return response(HttpStatus.NOT_FOUND, "CEP_NOT_FOUND", exception.getMessage(), request.getRequestURI(), List.of());

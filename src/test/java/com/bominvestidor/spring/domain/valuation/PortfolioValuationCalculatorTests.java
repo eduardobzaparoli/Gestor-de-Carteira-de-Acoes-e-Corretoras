@@ -1,0 +1,51 @@
+package com.bominvestidor.spring.domain.valuation;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+
+import org.junit.jupiter.api.Test;
+
+import com.bominvestidor.spring.domain.asset.AssetMarket;
+import com.bominvestidor.spring.domain.asset.AssetQuote;
+import com.bominvestidor.spring.domain.asset.AssetType;
+import com.bominvestidor.spring.dto.position.PortfolioPositionResponse;
+
+class PortfolioValuationCalculatorTests {
+	private final PortfolioValuationCalculator calculator = new PortfolioValuationCalculator();
+
+	@Test
+	void calculatesPositionsAndSeparateCurrencySummaries() {
+		PortfolioPositionResponse petr = position("PETR4", AssetMarket.BR, "BRL", "10", "100");
+		PortfolioPositionResponse vale = position("VALE3", AssetMarket.BR, "BRL", "5", "50");
+		PortfolioPositionResponse msft = position("MSFT", AssetMarket.US, "USD", "2", "200");
+		var result = calculator.calculate(List.of(petr, vale, msft), Map.of(
+				key(petr), quote("PETR4", "BRL", "12"), key(vale), quote("VALE3", "BRL", "8"), key(msft), quote("MSFT", "USD", "120")));
+
+		assertEquals(3, result.positions().size());
+		assertEquals(0, new BigDecimal("120").compareTo(result.positions().get(0).marketValue()));
+		assertEquals(0, new BigDecimal("20").compareTo(result.positions().get(0).unrealizedGain()));
+		assertEquals(0, new BigDecimal("75").compareTo(result.positions().get(0).allocationPercentage()));
+		assertEquals(2, result.currencySummaries().size());
+		assertEquals("BRL", result.currencySummaries().get(0).currency());
+		assertEquals(0, new BigDecimal("160").compareTo(result.currencySummaries().get(0).marketValue()));
+		assertEquals("USD", result.currencySummaries().get(1).currency());
+		assertEquals(0, new BigDecimal("240").compareTo(result.currencySummaries().get(1).marketValue()));
+	}
+
+	@Test
+	void returnsEmptyValuationForNoOpenPositions() {
+		var result = calculator.calculate(List.of(), Map.of());
+		assertEquals(List.of(), result.positions());
+		assertEquals(List.of(), result.currencySummaries());
+	}
+
+	private PortfolioPositionResponse position(String ticker, AssetMarket market, String currency, String quantity, String cost) {
+		return new PortfolioPositionResponse(ticker, ticker, market, AssetType.STOCK, currency, new BigDecimal(quantity),
+				new BigDecimal(cost).divide(new BigDecimal(quantity)), new BigDecimal(cost));
+	}
+	private PortfolioValuationCalculator.PositionKey key(PortfolioPositionResponse position) { return new PortfolioValuationCalculator.PositionKey(position.market(), position.ticker()); }
+	private AssetQuote quote(String ticker, String currency, String price) { return new AssetQuote(ticker, currency, new BigDecimal(price)); }
+}

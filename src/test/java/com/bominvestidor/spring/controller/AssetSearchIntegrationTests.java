@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -78,6 +79,32 @@ class AssetSearchIntegrationTests {
 			.andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.code").value("BRAPI_PROVIDER_UNAVAILABLE"));
 		mockMvc.perform(get("/api/portfolios/{id}/assets", portfolioId).param("market", "US").param("assetType", "STOCK").param("query", "FAIL").header("Authorization", "Bearer " + session.token()))
 			.andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.code").value("ALPHAVANTAGE_RATE_LIMITED"));
+	}
+
+	@Test void valuesOpenPositionsByCurrencyAndProtectsTheRoute() throws Exception {
+		Session session = session(); UUID portfolioId = portfolio(session.user()).getId();
+		transaction(session, portfolioId, "PETR4", "BR", "BRL", "2", "30");
+		transaction(session, portfolioId, "MSFT", "US", "USD", "3", "100");
+
+		mockMvc.perform(get("/api/portfolios/{id}/valuation", portfolioId).header("Authorization", "Bearer " + session.token()))
+			.andExpect(status().isOk()).andExpect(jsonPath("$.positions.length()").value(2))
+			.andExpect(jsonPath("$.positions[0].ticker").value("PETR4"))
+			.andExpect(jsonPath("$.positions[0].currentPrice").value(35.10))
+			.andExpect(jsonPath("$.positions[0].marketValue").value(70.20))
+			.andExpect(jsonPath("$.currencySummaries.length()").value(2))
+			.andExpect(jsonPath("$.currencySummaries[0].currency").value("BRL"))
+			.andExpect(jsonPath("$.currencySummaries[1].currency").value("USD"));
+		mockMvc.perform(get("/api/portfolios/{id}/valuation", portfolioId)).andExpect(status().isUnauthorized());
+		Session other = session();
+		mockMvc.perform(get("/api/portfolios/{id}/valuation", portfolioId).header("Authorization", "Bearer " + other.token()))
+			.andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("PORTFOLIO_NOT_FOUND"));
+	}
+
+	private void transaction(Session session, UUID portfolioId, String ticker, String market, String currency, String quantity, String price) throws Exception {
+		String body = "{\"ticker\":\"%s\",\"assetName\":\"%s\",\"market\":\"%s\",\"assetType\":\"STOCK\",\"currency\":\"%s\",\"type\":\"BUY\",\"transactionDate\":\"%s\",\"quantity\":%s,\"unitPrice\":%s,\"costs\":0}"
+				.formatted(ticker, ticker, market, currency, LocalDate.now(), quantity, price);
+		mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/portfolios/{id}/transactions", portfolioId)
+				.header("Authorization", "Bearer " + session.token()).contentType("application/json").content(body)).andExpect(status().isCreated());
 	}
 
 	private Session session() { String email = UUID.randomUUID()+"@example.com"; authService.register(new RegisterRequest("Investor",email,"password123")); return new Session(authService.login(new LoginRequest(email,"password123")).token(), users.findByEmail(email).orElseThrow()); }
