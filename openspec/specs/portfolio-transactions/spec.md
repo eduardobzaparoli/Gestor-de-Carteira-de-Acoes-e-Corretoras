@@ -56,7 +56,7 @@ O sistema SHALL registrar como `EFFECTIVE` todo lançamento cuja data seja igual
 - **THEN** o sistema responde com status `409` e código `TRANSACTION_CANNOT_BE_CANCELLED`, sem alterar o histórico
 
 ### Requirement: Bloqueio de venda acima da posição disponível
-O sistema MUST impedir que uma venda reduza a quantidade disponível de um ativo abaixo de zero. Para cada ticker e mercado na carteira, a quantidade disponível SHALL ser a posição dos lançamentos `EFFECTIVE` menos as quantidades de vendas futuras `PENDING`; compras futuras pendentes MUST NOT aumentar a quantidade disponível. A quantidade reservada por uma venda pendente MUST ser liberada quando ela for cancelada.
+O sistema MUST impedir que uma venda reduza a quantidade disponível de um ativo abaixo de zero. Para cada ticker e mercado na carteira, a quantidade disponível SHALL ser a posição dos lançamentos `EFFECTIVE` menos as quantidades de vendas futuras `PENDING`; compras futuras pendentes MUST NOT aumentar a quantidade disponível. A quantidade reservada por uma venda pendente MUST ser liberada quando ela for cancelada. Ao inserir uma venda com data presente ou passada, o sistema MUST recalcular a sequência por data da transação e data de criação e rejeitar a operação caso a quantidade fique negativa em qualquer ponto do histórico.
 
 #### Scenario: Venda efetiva dentro da posição
 - **WHEN** o investidor registra uma venda com quantidade igual ou menor que a posição disponível do ativo
@@ -73,6 +73,10 @@ O sistema MUST impedir que uma venda reduza a quantidade disponível de um ativo
 #### Scenario: Cancelamento libera a reserva
 - **WHEN** o investidor cancela uma venda futura pendente
 - **THEN** a quantidade daquela venda deixa de ser considerada para bloquear novas vendas
+
+#### Scenario: Venda retroativa produziria saldo histórico negativo
+- **WHEN** o investidor registra uma venda presente ou passada que, em ordem cronológica, antecede quantidade suficiente do ativo
+- **THEN** o sistema responde com status `409` e código `INSUFFICIENT_ASSET_QUANTITY`, sem criar o lançamento
 
 ### Requirement: Histórico privado e imutável
 O sistema SHALL disponibilizar o histórico de lançamentos de uma carteira própria em ordem da data de transação mais recente para a mais antiga, usando a data de criação como desempate. Cada item MUST expor identificador, tipo, status, retrato do ativo, data da transação, quantidade, preço unitário, custos e datas públicas. O sistema MUST NOT disponibilizar atualização ou exclusão física de lançamentos.
