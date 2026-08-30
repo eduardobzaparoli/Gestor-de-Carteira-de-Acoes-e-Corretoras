@@ -50,6 +50,11 @@ public class AssetSearchService {
 		return List.copyOf(results);
 	}
 
+	public java.util.Optional<AssetQuote> findQuote(AssetMarket market, String ticker) {
+		AssetSearchStrategy strategy = strategyResolver.resolve(market);
+		return cache.findQuote(market, ticker).or(() -> findAndCacheQuote(strategy, market, ticker));
+	}
+
 	private List<AssetCandidate> findAndCache(AssetSearchStrategy strategy, AssetMarket market, AssetType type, String query) {
 		List<AssetCandidate> candidates = strategy.findCandidates(type, query).stream()
 				.filter(candidate -> candidate.market() == market && candidate.assetType() == type).toList();

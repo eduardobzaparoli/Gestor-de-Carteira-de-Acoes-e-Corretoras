@@ -43,6 +43,7 @@ import com.bominvestidor.spring.service.auth.AuthService;
 import com.bominvestidor.spring.service.asset.AssetSearchService;
 import com.bominvestidor.spring.service.portfolio.PortfolioService;
 import com.bominvestidor.spring.service.position.PortfolioPositionService;
+import com.bominvestidor.spring.service.valuation.PortfolioMarketValuationService;
 import com.bominvestidor.spring.service.transaction.PortfolioTransactionService;
 
 @SpringBootTest
@@ -60,6 +61,7 @@ class PostgresPortfolioIntegrationTests {
 	@Autowired private JdbcTemplate jdbcTemplate;
 	@Autowired private PortfolioTransactionService transactionService;
 	@Autowired private PortfolioPositionService positionService;
+	@Autowired private PortfolioMarketValuationService valuationService;
 
 	@Test
 	void initializesSchemaAndSupportsPortfolioLifecycle() {
@@ -95,7 +97,12 @@ class PostgresPortfolioIntegrationTests {
 			assertEquals(1, jdbcTemplate.queryForObject(
 					"select count(*) from portfolio_transactions where portfolio_id = ?", Integer.class, portfolioId));
 			assertEquals(0, new BigDecimal("35.10").compareTo(positionService.findAll(userId, portfolioId).get(0).averagePrice()));
+			var valuation = valuationService.find(userId, portfolioId);
+			assertEquals(1, valuation.positions().size());
+			assertEquals(0, new BigDecimal("70.20").compareTo(valuation.positions().get(0).marketValue()));
+			assertEquals("BRL", valuation.currencySummaries().get(0).currency());
 			assertEquals(List.of(), positionPersistenceTables());
+			assertEquals(List.of(), valuationPersistenceTables());
 			assertThrows(PortfolioConflictException.class, () -> portfolioService.delete(userId, createdPortfolioId));
 			deleteTransactions(portfolioId);
 
@@ -137,6 +144,14 @@ class PostgresPortfolioIntegrationTests {
 		return jdbcTemplate.queryForList("""
 				select table_name from information_schema.tables
 				where table_schema = 'public' and lower(table_name) like '%position%'
+				order by table_name
+				""", String.class);
+	}
+
+	private List<String> valuationPersistenceTables() {
+		return jdbcTemplate.queryForList("""
+				select table_name from information_schema.tables
+				where table_schema = 'public' and lower(table_name) like '%valuation%'
 				order by table_name
 				""", String.class);
 	}
