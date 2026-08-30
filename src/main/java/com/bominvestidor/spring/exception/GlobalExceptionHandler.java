@@ -97,6 +97,12 @@ public class GlobalExceptionHandler {
 		return response(HttpStatus.CONFLICT, exception.getCode(), exception.getMessage(), request.getRequestURI(), List.of());
 	}
 
+	@ExceptionHandler(PortfolioTransactionConflictException.class)
+	ResponseEntity<ApiErrorResponse> handlePortfolioTransactionConflict(PortfolioTransactionConflictException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.CONFLICT, exception.getCode(), exception.getMessage(), request.getRequestURI(), List.of());
+	}
+
 	@ExceptionHandler(BrokerageNotFoundException.class)
 	ResponseEntity<ApiErrorResponse> handleBrokerageNotFound(BrokerageNotFoundException exception,
 			HttpServletRequest request) {
@@ -107,6 +113,12 @@ public class GlobalExceptionHandler {
 	ResponseEntity<ApiErrorResponse> handlePortfolioNotFound(PortfolioNotFoundException exception,
 			HttpServletRequest request) {
 		return response(HttpStatus.NOT_FOUND, "PORTFOLIO_NOT_FOUND", exception.getMessage(), request.getRequestURI(), List.of());
+	}
+
+	@ExceptionHandler(PortfolioTransactionNotFoundException.class)
+	ResponseEntity<ApiErrorResponse> handlePortfolioTransactionNotFound(PortfolioTransactionNotFoundException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.NOT_FOUND, "TRANSACTION_NOT_FOUND", exception.getMessage(), request.getRequestURI(), List.of());
 	}
 
 	@ExceptionHandler(BrokerageRuleException.class)
