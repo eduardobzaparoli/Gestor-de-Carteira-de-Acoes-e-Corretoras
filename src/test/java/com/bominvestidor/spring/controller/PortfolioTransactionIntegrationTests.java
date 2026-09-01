@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.UUID;
@@ -34,28 +35,33 @@ class PortfolioTransactionIntegrationTests {
 	@Autowired MockMvc mockMvc; @Autowired AuthService auth; @Autowired UserRepository users; @Autowired BrokerageRepository brokerages; @Autowired PortfolioRepository portfolios; @Autowired MutableClock clock;
 
 	@Test void recordsHistoryReservesFutureSalesAndPreservesPortfolioLog() throws Exception {
+		clock.set(Instant.now());
+		LocalDate today = LocalDate.now(clock); LocalDate pastDate = today.minusDays(2);
+		LocalDate firstFutureDate = today.plusDays(1); LocalDate secondFutureDate = today.plusDays(2);
 		Session session = session(); UUID portfolioId = portfolio(session.user()).getId();
-		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json").content(body("BUY", "2026-08-28", "10")))
+		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json").content(body("BUY", pastDate.toString(), "10")))
 			.andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("EFFECTIVE"));
-		String pending = mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json").content(body("SELL", "2026-08-31", "7")))
+		String pending = mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json").content(body("SELL", firstFutureDate.toString(), "7")))
 			.andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("PENDING")).andReturn().getResponse().getContentAsString();
 		String pendingId = com.jayway.jsonpath.JsonPath.read(pending, "$.id");
-		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json").content(body("SELL", "2026-09-01", "4")))
+		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json").content(body("SELL", secondFutureDate.toString(), "4")))
 			.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("INSUFFICIENT_ASSET_QUANTITY"));
 		mockMvc.perform(delete(path(portfolioId)+"/{id}", pendingId).header("Authorization", bearer(session))).andExpect(status().isNoContent());
-		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json").content(body("SELL", "2026-09-01", "10")))
+		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json").content(body("SELL", secondFutureDate.toString(), "10")))
 			.andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("PENDING"));
 		mockMvc.perform(delete("/api/portfolios/{id}", portfolioId).header("Authorization", bearer(session)))
 			.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("PORTFOLIO_HAS_TRANSACTIONS"));
-		clock.set(Instant.parse("2026-09-02T12:00:00Z"));
+		clock.set(secondFutureDate.plusDays(1).atTime(12, 0).toInstant(ZoneOffset.UTC));
 		mockMvc.perform(get(path(portfolioId)).header("Authorization", bearer(session))).andExpect(status().isOk())
-			.andExpect(jsonPath("$[0].transactionDate").value("2026-09-01")).andExpect(jsonPath("$[0].status").value("EFFECTIVE"));
+			.andExpect(jsonPath("$[0].transactionDate").value(secondFutureDate.toString())).andExpect(jsonPath("$[0].status").value("EFFECTIVE"));
 	}
 
 	@Test void protectsRoutesAndRejectsInvalidRequests() throws Exception {
+		clock.set(Instant.now());
+		String pastDate = LocalDate.now(clock).minusDays(2).toString();
 		Session first = session(); UUID portfolioId = portfolio(first.user()).getId();
-		mockMvc.perform(post(path(portfolioId)).contentType("application/json").content(body("BUY", "2026-08-28", "1"))).andExpect(status().isUnauthorized());
-		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(first)).contentType("application/json").content(body("BUY", "2026-08-28", "0")))
+		mockMvc.perform(post(path(portfolioId)).contentType("application/json").content(body("BUY", pastDate, "1"))).andExpect(status().isUnauthorized());
+		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(first)).contentType("application/json").content(body("BUY", pastDate, "0")))
 			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.fieldErrors[0].field").value("quantity"));
 		Session other = session();
 		mockMvc.perform(get(path(portfolioId)).header("Authorization", bearer(other))).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("PORTFOLIO_NOT_FOUND"));

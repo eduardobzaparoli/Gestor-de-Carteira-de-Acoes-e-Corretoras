@@ -9,13 +9,20 @@ import java.util.List;
 import java.util.Map;
 
 import com.bominvestidor.spring.domain.asset.AssetQuote;
+import com.bominvestidor.spring.domain.exchange.ExchangeRate;
 import com.bominvestidor.spring.dto.position.PortfolioPositionResponse;
 
 public class PortfolioValuationCalculator {
 	private static final MathContext CALCULATION_CONTEXT = MathContext.DECIMAL128;
 	private static final BigDecimal HUNDRED = new BigDecimal("100");
 
-	public PortfolioMarketValuation calculate(List<PortfolioPositionResponse> positions, Map<PositionKey, AssetQuote> quotes) {
+	public PortfolioMarketValuation calculate(List<PortfolioPositionResponse> positions, Map<PositionKey, AssetQuote> quotes,
+			Map<String, ExchangeRate> exchangeRates) {
+		return calculate(positions, quotes, exchangeRates, new PortfolioHistoricalCost(positions.stream()
+				.map(PortfolioPositionResponse::custodyCost).reduce(BigDecimal.ZERO, (left, right) -> left.add(right, CALCULATION_CONTEXT)), List.of()));
+	}
+	public PortfolioMarketValuation calculate(List<PortfolioPositionResponse> positions, Map<PositionKey, AssetQuote> quotes,
+			Map<String, ExchangeRate> exchangeRates, PortfolioHistoricalCost historicalCost) {
 		List<Draft> drafts = positions.stream().map(position -> draft(position, quote(quotes, position))).toList();
 		Map<String, Totals> totalsByCurrency = new LinkedHashMap<>();
 		for (Draft draft : drafts) totalsByCurrency.merge(draft.currency(), new Totals(draft.custodyCost(), draft.marketValue()), Totals::add);
@@ -23,7 +30,24 @@ public class PortfolioValuationCalculator {
 				.toList();
 		List<PortfolioCurrencySummary> summaries = totalsByCurrency.entrySet().stream()
 				.sorted(Map.Entry.comparingByKey()).map(entry -> summary(entry.getKey(), entry.getValue())).toList();
-		return new PortfolioMarketValuation(valued, summaries);
+		return new PortfolioMarketValuation(valued, summaries, consolidated(drafts, exchangeRates, historicalCost));
+	}
+	private PortfolioConsolidatedSummary consolidated(List<Draft> drafts, Map<String, ExchangeRate> exchangeRates, PortfolioHistoricalCost historicalCost) {
+		if (drafts.isEmpty()) return null;
+		BigDecimal marketValue = BigDecimal.ZERO;
+		for (Draft draft : drafts) {
+			if ("BRL".equalsIgnoreCase(draft.currency())) marketValue = marketValue.add(draft.marketValue(), CALCULATION_CONTEXT);
+			else marketValue = marketValue.add(draft.marketValue().multiply(exchangeRate(exchangeRates, draft.currency()).rate(), CALCULATION_CONTEXT), CALCULATION_CONTEXT);
+		}
+		List<ExchangeRate> rates = exchangeRates.values().stream().sorted(Comparator.comparing(ExchangeRate::sourceCurrency)).toList();
+		BigDecimal gain = marketValue.subtract(historicalCost.investedValue(), CALCULATION_CONTEXT);
+		return new PortfolioConsolidatedSummary("BRL", historicalCost.investedValue(), marketValue, gain,
+				percentage(gain, historicalCost.investedValue()), rates, historicalCost.exchangeRates());
+	}
+	private ExchangeRate exchangeRate(Map<String, ExchangeRate> exchangeRates, String currency) {
+		ExchangeRate rate = exchangeRates.get(currency);
+		if (rate == null) throw new IllegalArgumentException("Missing exchange rate");
+		return rate;
 	}
 
 	private AssetQuote quote(Map<PositionKey, AssetQuote> quotes, PortfolioPositionResponse position) {

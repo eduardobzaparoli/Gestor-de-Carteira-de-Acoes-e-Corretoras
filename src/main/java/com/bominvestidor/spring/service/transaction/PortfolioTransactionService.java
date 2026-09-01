@@ -45,7 +45,8 @@ public class PortfolioTransactionService {
 		PortfolioTransactionEntity entity = new PortfolioTransactionEntity(UUID.randomUUID(), portfolio, request.ticker().trim().toUpperCase(Locale.ROOT),
 				request.assetName().trim(), request.market(), request.assetType(), request.currency().trim().toUpperCase(Locale.ROOT), request.type(),
 				status, request.transactionDate(), request.quantity(), request.unitPrice(), request.costs() == null ? BigDecimal.ZERO : request.costs(), now, now);
-		if (request.type() == TransactionType.SELL && available(portfolioId, request.ticker(), request.market()).compareTo(request.quantity()) < 0)
+		if (request.type() == TransactionType.SELL && status == TransactionStatus.PENDING
+				&& available(portfolioId, request.ticker(), request.market()).compareTo(request.quantity()) < 0)
 			throw conflict("INSUFFICIENT_ASSET_QUANTITY", "Asset quantity is insufficient for this sale");
 		if (status == TransactionStatus.EFFECTIVE) validateChronologicalQuantity(portfolioId, entity);
 		return mapper.toResponse(repository.save(entity));
