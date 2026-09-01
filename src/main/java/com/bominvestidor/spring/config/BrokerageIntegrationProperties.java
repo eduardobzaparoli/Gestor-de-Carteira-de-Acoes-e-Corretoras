@@ -22,6 +22,7 @@ public class BrokerageIntegrationProperties {
 	private Duration assetSearchCacheTtl = Duration.ofMinutes(5);
 	private Duration assetQuoteCacheTtl = Duration.ofMinutes(1);
 	private Duration exchangeRateCacheTtl = Duration.ofHours(1);
+	private Duration incomeCandidateCacheTtl = Duration.ofMinutes(10);
 
 	public String getBrasilApiBaseUrl() {
 		return brasilApiBaseUrl;
@@ -101,4 +102,6 @@ public class BrokerageIntegrationProperties {
 	public void setAssetQuoteCacheTtl(Duration assetQuoteCacheTtl) { this.assetQuoteCacheTtl = assetQuoteCacheTtl; }
 	public Duration getExchangeRateCacheTtl() { return exchangeRateCacheTtl; }
 	public void setExchangeRateCacheTtl(Duration exchangeRateCacheTtl) { this.exchangeRateCacheTtl = exchangeRateCacheTtl; }
+	public Duration getIncomeCandidateCacheTtl() { return incomeCandidateCacheTtl; }
+	public void setIncomeCandidateCacheTtl(Duration incomeCandidateCacheTtl) { this.incomeCandidateCacheTtl = incomeCandidateCacheTtl; }
 }
