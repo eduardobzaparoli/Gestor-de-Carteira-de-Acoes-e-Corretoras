@@ -149,6 +149,13 @@ public class GlobalExceptionHandler {
 				request.getRequestURI(), List.of());
 	}
 
+	@ExceptionHandler(ExchangeRateUnavailableException.class)
+	ResponseEntity<ApiErrorResponse> handleExchangeRateUnavailable(ExchangeRateUnavailableException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.SERVICE_UNAVAILABLE, "EXCHANGE_RATE_UNAVAILABLE", exception.getMessage(),
+				request.getRequestURI(), List.of());
+	}
+
 	@ExceptionHandler(CepNotFoundException.class)
 	ResponseEntity<ApiErrorResponse> handleCepNotFound(CepNotFoundException exception, HttpServletRequest request) {
 		return response(HttpStatus.NOT_FOUND, "CEP_NOT_FOUND", exception.getMessage(), request.getRequestURI(), List.of());

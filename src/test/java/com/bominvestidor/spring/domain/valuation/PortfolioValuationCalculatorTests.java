@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import com.bominvestidor.spring.domain.asset.AssetMarket;
 import com.bominvestidor.spring.domain.asset.AssetQuote;
 import com.bominvestidor.spring.domain.asset.AssetType;
+import com.bominvestidor.spring.domain.exchange.ExchangeRate;
 import com.bominvestidor.spring.dto.position.PortfolioPositionResponse;
 
 class PortfolioValuationCalculatorTests {
@@ -22,7 +23,8 @@ class PortfolioValuationCalculatorTests {
 		PortfolioPositionResponse vale = position("VALE3", AssetMarket.BR, "BRL", "5", "50");
 		PortfolioPositionResponse msft = position("MSFT", AssetMarket.US, "USD", "2", "200");
 		var result = calculator.calculate(List.of(petr, vale, msft), Map.of(
-				key(petr), quote("PETR4", "BRL", "12"), key(vale), quote("VALE3", "BRL", "8"), key(msft), quote("MSFT", "USD", "120")));
+				key(petr), quote("PETR4", "BRL", "12"), key(vale), quote("VALE3", "BRL", "8"), key(msft), quote("MSFT", "USD", "120")),
+				Map.of("USD", rate("5")));
 
 		assertEquals(3, result.positions().size());
 		assertEquals(0, new BigDecimal("120").compareTo(result.positions().get(0).marketValue()));
@@ -33,13 +35,36 @@ class PortfolioValuationCalculatorTests {
 		assertEquals(0, new BigDecimal("160").compareTo(result.currencySummaries().get(0).marketValue()));
 		assertEquals("USD", result.currencySummaries().get(1).currency());
 		assertEquals(0, new BigDecimal("240").compareTo(result.currencySummaries().get(1).marketValue()));
+		assertEquals("BRL", result.consolidatedSummary().baseCurrency());
+		assertEquals(0, new BigDecimal("1360").compareTo(result.consolidatedSummary().marketValue()));
+		assertEquals(1, result.consolidatedSummary().exchangeRates().size());
 	}
 
 	@Test
 	void returnsEmptyValuationForNoOpenPositions() {
-		var result = calculator.calculate(List.of(), Map.of());
+		var result = calculator.calculate(List.of(), Map.of(), Map.of());
 		assertEquals(List.of(), result.positions());
 		assertEquals(List.of(), result.currencySummaries());
+		assertEquals(null, result.consolidatedSummary());
+	}
+
+	@Test
+	void consolidatesABrlOnlyPortfolioWithoutExchangeRates() {
+		PortfolioPositionResponse petr = position("PETR4", AssetMarket.BR, "BRL", "10", "100");
+		var result = calculator.calculate(List.of(petr), Map.of(key(petr), quote("PETR4", "BRL", "12")), Map.of());
+
+		assertEquals(0, new BigDecimal("120").compareTo(result.consolidatedSummary().marketValue()));
+		assertEquals(List.of(), result.consolidatedSummary().exchangeRates());
+	}
+
+	@Test
+	void convertsAnUsdOnlyPortfolioToBrl() {
+		PortfolioPositionResponse msft = position("MSFT", AssetMarket.US, "USD", "2", "200");
+		var result = calculator.calculate(List.of(msft), Map.of(key(msft), quote("MSFT", "USD", "120")),
+				Map.of("USD", rate("5")));
+
+		assertEquals(0, new BigDecimal("1200").compareTo(result.consolidatedSummary().marketValue()));
+		assertEquals(1, result.consolidatedSummary().exchangeRates().size());
 	}
 
 	private PortfolioPositionResponse position(String ticker, AssetMarket market, String currency, String quantity, String cost) {
@@ -48,4 +73,5 @@ class PortfolioValuationCalculatorTests {
 	}
 	private PortfolioValuationCalculator.PositionKey key(PortfolioPositionResponse position) { return new PortfolioValuationCalculator.PositionKey(position.market(), position.ticker()); }
 	private AssetQuote quote(String ticker, String currency, String price) { return new AssetQuote(ticker, currency, new BigDecimal(price)); }
+	private ExchangeRate rate(String value) { return new ExchangeRate("USD", "BRL", new BigDecimal(value), java.time.LocalDate.of(2026, 8, 28)); }
 }

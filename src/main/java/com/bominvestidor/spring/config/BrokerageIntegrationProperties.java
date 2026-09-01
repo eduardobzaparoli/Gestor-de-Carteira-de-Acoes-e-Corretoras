@@ -21,6 +21,7 @@ public class BrokerageIntegrationProperties {
 	private String alphaVantageApiKey = "";
 	private Duration assetSearchCacheTtl = Duration.ofMinutes(5);
 	private Duration assetQuoteCacheTtl = Duration.ofMinutes(1);
+	private Duration exchangeRateCacheTtl = Duration.ofHours(1);
 
 	public String getBrasilApiBaseUrl() {
 		return brasilApiBaseUrl;
@@ -98,4 +99,6 @@ public class BrokerageIntegrationProperties {
 	public void setAssetSearchCacheTtl(Duration assetSearchCacheTtl) { this.assetSearchCacheTtl = assetSearchCacheTtl; }
 	public Duration getAssetQuoteCacheTtl() { return assetQuoteCacheTtl; }
 	public void setAssetQuoteCacheTtl(Duration assetQuoteCacheTtl) { this.assetQuoteCacheTtl = assetQuoteCacheTtl; }
+	public Duration getExchangeRateCacheTtl() { return exchangeRateCacheTtl; }
+	public void setExchangeRateCacheTtl(Duration exchangeRateCacheTtl) { this.exchangeRateCacheTtl = exchangeRateCacheTtl; }
 }

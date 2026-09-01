@@ -6,9 +6,12 @@ import java.math.RoundingMode;
 import org.springframework.stereotype.Component;
 
 import com.bominvestidor.spring.domain.valuation.PortfolioCurrencySummary;
+import com.bominvestidor.spring.domain.valuation.PortfolioConsolidatedSummary;
 import com.bominvestidor.spring.domain.valuation.PortfolioMarketValuation;
 import com.bominvestidor.spring.domain.valuation.PortfolioValuationPosition;
 import com.bominvestidor.spring.dto.valuation.PortfolioCurrencySummaryResponse;
+import com.bominvestidor.spring.dto.valuation.ExchangeRateResponse;
+import com.bominvestidor.spring.dto.valuation.PortfolioConsolidatedSummaryResponse;
 import com.bominvestidor.spring.dto.valuation.PortfolioMarketValuationResponse;
 import com.bominvestidor.spring.dto.valuation.PortfolioValuationPositionResponse;
 
@@ -16,7 +19,15 @@ import com.bominvestidor.spring.dto.valuation.PortfolioValuationPositionResponse
 public class PortfolioMarketValuationMapper {
 	public PortfolioMarketValuationResponse toResponse(PortfolioMarketValuation valuation) {
 		return new PortfolioMarketValuationResponse(valuation.positions().stream().map(this::toResponse).toList(),
-				valuation.currencySummaries().stream().map(this::toResponse).toList());
+				valuation.currencySummaries().stream().map(this::toResponse).toList(), toResponse(valuation.consolidatedSummary()));
+	}
+	private PortfolioConsolidatedSummaryResponse toResponse(PortfolioConsolidatedSummary value) {
+		if (value == null) return null;
+		return new PortfolioConsolidatedSummaryResponse(value.baseCurrency(), decimal(value.investedValue()), decimal(value.marketValue()),
+				decimal(value.totalGain()), decimal(value.returnPercentage()), rates(value.exchangeRates()), rates(value.historicalExchangeRates()));
+	}
+	private java.util.List<ExchangeRateResponse> rates(java.util.List<com.bominvestidor.spring.domain.exchange.ExchangeRate> rates) {
+		return rates.stream().map(rate -> new ExchangeRateResponse(rate.sourceCurrency(), rate.targetCurrency(), decimal(rate.rate()), rate.referenceDate())).toList();
 	}
 	private PortfolioValuationPositionResponse toResponse(PortfolioValuationPosition value) {
 		return new PortfolioValuationPositionResponse(value.ticker(), value.assetName(), value.market(), value.assetType(), value.currency(),

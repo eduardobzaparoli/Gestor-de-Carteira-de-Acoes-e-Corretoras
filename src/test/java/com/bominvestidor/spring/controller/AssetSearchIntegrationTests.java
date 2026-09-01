@@ -11,6 +11,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +26,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.bominvestidor.spring.domain.asset.*;
+import com.bominvestidor.spring.domain.exchange.ExchangeRate;
 import com.bominvestidor.spring.domain.user.UserRole;
 import com.bominvestidor.spring.dto.auth.*;
 import com.bominvestidor.spring.entity.brokerage.BrokerageEntity;
@@ -32,6 +34,7 @@ import com.bominvestidor.spring.entity.portfolio.PortfolioEntity;
 import com.bominvestidor.spring.entity.user.UserEntity;
 import com.bominvestidor.spring.exception.AssetProviderUnavailableException;
 import com.bominvestidor.spring.integration.asset.*;
+import com.bominvestidor.spring.integration.exchange.ExchangeRateStrategy;
 import com.bominvestidor.spring.repository.brokerage.BrokerageRepository;
 import com.bominvestidor.spring.repository.portfolio.PortfolioRepository;
 import com.bominvestidor.spring.repository.user.UserRepository;
@@ -42,6 +45,8 @@ import com.bominvestidor.spring.service.auth.AuthService;
 @ActiveProfiles("test")
 @Import(AssetSearchIntegrationTests.StubProviders.class)
 class AssetSearchIntegrationTests {
+	private static final AtomicBoolean EXCHANGE_AVAILABLE = new AtomicBoolean(true);
+	private static final AtomicBoolean HISTORICAL_EXCHANGE_AVAILABLE = new AtomicBoolean(true);
 	@Autowired MockMvc mockMvc; @Autowired AuthService authService; @Autowired UserRepository users;
 	@Autowired BrokerageRepository brokerages; @Autowired PortfolioRepository portfolios;
 
@@ -93,16 +98,51 @@ class AssetSearchIntegrationTests {
 			.andExpect(jsonPath("$.positions[0].marketValue").value(70.20))
 			.andExpect(jsonPath("$.currencySummaries.length()").value(2))
 			.andExpect(jsonPath("$.currencySummaries[0].currency").value("BRL"))
-			.andExpect(jsonPath("$.currencySummaries[1].currency").value("USD"));
+			.andExpect(jsonPath("$.currencySummaries[1].currency").value("USD"))
+			.andExpect(jsonPath("$.consolidatedSummary.baseCurrency").value("BRL"))
+			.andExpect(jsonPath("$.consolidatedSummary.investedValue").value(1560))
+			.andExpect(jsonPath("$.consolidatedSummary.marketValue").value(596.70))
+			.andExpect(jsonPath("$.consolidatedSummary.exchangeRates[0].sourceCurrency").value("USD"))
+			.andExpect(jsonPath("$.consolidatedSummary.historicalExchangeRates[0].sourceCurrency").value("USD"));
 		mockMvc.perform(get("/api/portfolios/{id}/valuation", portfolioId)).andExpect(status().isUnauthorized());
 		Session other = session();
 		mockMvc.perform(get("/api/portfolios/{id}/valuation", portfolioId).header("Authorization", "Bearer " + other.token()))
 			.andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("PORTFOLIO_NOT_FOUND"));
 	}
 
+	@Test
+	@org.springframework.test.annotation.DirtiesContext(methodMode = org.springframework.test.annotation.DirtiesContext.MethodMode.BEFORE_METHOD)
+	void failsAtomicallyWhenAnHistoricalExchangeRateIsUnavailable() throws Exception {
+		HISTORICAL_EXCHANGE_AVAILABLE.set(false);
+		try {
+			Session session = session(); UUID portfolioId = portfolio(session.user()).getId();
+			transaction(session, portfolioId, "MSFT", "US", "USD", "1", "100", LocalDate.now().minusDays(1));
+			mockMvc.perform(get("/api/portfolios/{id}/valuation", portfolioId).header("Authorization", "Bearer " + session.token()))
+					.andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.code").value("EXCHANGE_RATE_UNAVAILABLE"))
+					.andExpect(jsonPath("$.positions").doesNotExist());
+		} finally { HISTORICAL_EXCHANGE_AVAILABLE.set(true); }
+	}
+
+	@Test
+	@org.springframework.test.annotation.DirtiesContext(methodMode = org.springframework.test.annotation.DirtiesContext.MethodMode.BEFORE_METHOD)
+	void failsAtomicallyWhenTheExchangeRateIsUnavailable() throws Exception {
+		EXCHANGE_AVAILABLE.set(false);
+		try {
+			Session session = session(); UUID portfolioId = portfolio(session.user()).getId();
+			transaction(session, portfolioId, "MSFT", "US", "USD", "1", "100");
+			mockMvc.perform(get("/api/portfolios/{id}/valuation", portfolioId).header("Authorization", "Bearer " + session.token()))
+					.andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.code").value("EXCHANGE_RATE_UNAVAILABLE"))
+					.andExpect(jsonPath("$.positions").doesNotExist());
+		} finally { EXCHANGE_AVAILABLE.set(true); }
+	}
+
 	private void transaction(Session session, UUID portfolioId, String ticker, String market, String currency, String quantity, String price) throws Exception {
+		transaction(session, portfolioId, ticker, market, currency, quantity, price, LocalDate.now());
+	}
+	private void transaction(Session session, UUID portfolioId, String ticker, String market, String currency, String quantity, String price,
+			LocalDate transactionDate) throws Exception {
 		String body = "{\"ticker\":\"%s\",\"assetName\":\"%s\",\"market\":\"%s\",\"assetType\":\"STOCK\",\"currency\":\"%s\",\"type\":\"BUY\",\"transactionDate\":\"%s\",\"quantity\":%s,\"unitPrice\":%s,\"costs\":0}"
-				.formatted(ticker, ticker, market, currency, LocalDate.now(), quantity, price);
+				.formatted(ticker, ticker, market, currency, transactionDate, quantity, price);
 		mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/portfolios/{id}/transactions", portfolioId)
 				.header("Authorization", "Bearer " + session.token()).contentType("application/json").content(body)).andExpect(status().isCreated());
 	}
@@ -113,6 +153,10 @@ class AssetSearchIntegrationTests {
 
 	@TestConfiguration(proxyBeanMethods=false) static class StubProviders {
 		@Bean @Primary AssetSearchStrategyResolver assetSearchStrategyResolver() { return new AssetSearchStrategyResolver(List.of(new Stub(AssetMarket.BR),new Stub(AssetMarket.US))); }
+		@Bean @Primary ExchangeRateStrategy exchangeRateStrategy() {
+			return (source, target, date) -> EXCHANGE_AVAILABLE.get() && (HISTORICAL_EXCHANGE_AVAILABLE.get() || !date.isBefore(LocalDate.now()))
+					? Optional.of(new ExchangeRate(source, target, new BigDecimal("5.00"), date.minusDays(1))) : Optional.empty();
+		}
 	}
 	static class Stub implements AssetSearchStrategy { final AssetMarket market; Stub(AssetMarket market){this.market=market;} public AssetMarket market(){return market;} public List<AssetCandidate> findCandidates(AssetType type,String query){if("FAIL".equals(query)) throw new AssetProviderUnavailableException(market==AssetMarket.US?"ALPHAVANTAGE_RATE_LIMITED":"BRAPI_PROVIDER_UNAVAILABLE","provider unavailable"); if("EMPTY".equals(query)) return List.of(); return List.of(new AssetCandidate(market==AssetMarket.BR?"PETR4":"SPY",market==AssetMarket.BR?"Petrobras":"SPDR",market,type,market==AssetMarket.BR?"BRL":"USD"));} public Optional<AssetQuote> findQuote(String ticker){return Optional.of(new AssetQuote(ticker,market==AssetMarket.BR?"BRL":"USD",new BigDecimal("35.10")));} }
 }

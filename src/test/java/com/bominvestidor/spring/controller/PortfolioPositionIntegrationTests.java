@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -109,8 +110,10 @@ class PortfolioPositionIntegrationTests {
 		post(session, portfolioId, transaction("PETR4", "Petrobras", "BR", "STOCK", "BRL", "BUY", today, "10", "10", "0"));
 		post(session, portfolioId, transaction("PETR4", "Petrobras", "BR", "STOCK", "BRL", "SELL", yesterday, "1", "10", "0"))
 			.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("INSUFFICIENT_ASSET_QUANTITY"));
+		clock.advance(Duration.ofSeconds(1));
 		post(session, portfolioId, transaction("PETR4", "Petrobras", "BR", "STOCK", "BRL", "BUY", yesterday, "2", "10", "0"))
 			.andExpect(status().isCreated());
+		clock.advance(Duration.ofSeconds(1));
 		post(session, portfolioId, transaction("PETR4", "Petrobras", "BR", "STOCK", "BRL", "SELL", yesterday, "1", "10", "0"))
 			.andExpect(status().isCreated());
 	}
@@ -143,5 +146,5 @@ class PortfolioPositionIntegrationTests {
 
 	@TestConfiguration(proxyBeanMethods = false)
 	static class TestClockConfiguration { @Bean @Primary MutableClock clock() { return new MutableClock(Instant.now()); } }
-	static class MutableClock extends Clock { private Instant instant; MutableClock(Instant instant) { this.instant=instant; } void set(Instant instant) { this.instant=instant; } @Override public ZoneId getZone(){return ZoneOffset.UTC;} @Override public Clock withZone(ZoneId zone){return this;} @Override public Instant instant(){return instant;} }
+	static class MutableClock extends Clock { private Instant instant; MutableClock(Instant instant) { this.instant=instant; } void set(Instant instant) { this.instant=instant; } void advance(Duration duration) { instant = instant.plus(duration); } @Override public ZoneId getZone(){return ZoneOffset.UTC;} @Override public Clock withZone(ZoneId zone){return this;} @Override public Instant instant(){return instant;} }
 }
