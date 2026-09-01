@@ -64,6 +64,13 @@ public class GlobalExceptionHandler {
 				request.getRequestURI(), exception.getFieldErrors());
 	}
 
+	@ExceptionHandler(InvalidIncomeEventDataException.class)
+	ResponseEntity<ApiErrorResponse> handleInvalidIncomeEventData(InvalidIncomeEventDataException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Request validation failed",
+				request.getRequestURI(), exception.getFieldErrors());
+	}
+
 	@ExceptionHandler(HttpMessageNotReadableException.class)
 	ResponseEntity<ApiErrorResponse> handleUnreadableMessage(HttpMessageNotReadableException exception,
 			HttpServletRequest request) {
@@ -103,6 +110,12 @@ public class GlobalExceptionHandler {
 		return response(HttpStatus.CONFLICT, exception.getCode(), exception.getMessage(), request.getRequestURI(), List.of());
 	}
 
+	@ExceptionHandler(PortfolioIncomeEventConflictException.class)
+	ResponseEntity<ApiErrorResponse> handlePortfolioIncomeEventConflict(PortfolioIncomeEventConflictException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.CONFLICT, exception.getCode(), exception.getMessage(), request.getRequestURI(), List.of());
+	}
+
 	@ExceptionHandler(BrokerageNotFoundException.class)
 	ResponseEntity<ApiErrorResponse> handleBrokerageNotFound(BrokerageNotFoundException exception,
 			HttpServletRequest request) {
@@ -119,6 +132,12 @@ public class GlobalExceptionHandler {
 	ResponseEntity<ApiErrorResponse> handlePortfolioTransactionNotFound(PortfolioTransactionNotFoundException exception,
 			HttpServletRequest request) {
 		return response(HttpStatus.NOT_FOUND, "TRANSACTION_NOT_FOUND", exception.getMessage(), request.getRequestURI(), List.of());
+	}
+
+	@ExceptionHandler(PortfolioIncomeEventNotFoundException.class)
+	ResponseEntity<ApiErrorResponse> handlePortfolioIncomeEventNotFound(PortfolioIncomeEventNotFoundException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.NOT_FOUND, "INCOME_EVENT_NOT_FOUND", exception.getMessage(), request.getRequestURI(), List.of());
 	}
 
 	@ExceptionHandler(BrokerageRuleException.class)

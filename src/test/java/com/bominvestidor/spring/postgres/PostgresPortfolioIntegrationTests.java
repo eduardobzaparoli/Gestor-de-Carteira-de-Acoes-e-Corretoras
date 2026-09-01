@@ -29,6 +29,9 @@ import com.bominvestidor.spring.domain.user.UserRole;
 import com.bominvestidor.spring.dto.auth.RegisterRequest;
 import com.bominvestidor.spring.dto.portfolio.PortfolioCreateRequest;
 import com.bominvestidor.spring.dto.transaction.PortfolioTransactionCreateRequest;
+import com.bominvestidor.spring.dto.income.ManualIncomeEventCreateRequest;
+import com.bominvestidor.spring.domain.income.IncomeEventType;
+import com.bominvestidor.spring.domain.income.IncomeEventStatus;
 import com.bominvestidor.spring.domain.transaction.TransactionType;
 import com.bominvestidor.spring.entity.brokerage.BrokerageEntity;
 import com.bominvestidor.spring.entity.user.UserEntity;
@@ -45,6 +48,8 @@ import com.bominvestidor.spring.service.portfolio.PortfolioService;
 import com.bominvestidor.spring.service.position.PortfolioPositionService;
 import com.bominvestidor.spring.service.valuation.PortfolioMarketValuationService;
 import com.bominvestidor.spring.service.transaction.PortfolioTransactionService;
+import com.bominvestidor.spring.service.income.PortfolioIncomeEventService;
+import com.bominvestidor.spring.exception.PortfolioIncomeEventConflictException;
 
 @SpringBootTest
 @ActiveProfiles("postgres")
@@ -62,6 +67,7 @@ class PostgresPortfolioIntegrationTests {
 	@Autowired private PortfolioTransactionService transactionService;
 	@Autowired private PortfolioPositionService positionService;
 	@Autowired private PortfolioMarketValuationService valuationService;
+	@Autowired private PortfolioIncomeEventService incomeEventService;
 
 	@Test
 	void initializesSchemaAndSupportsPortfolioLifecycle() {
@@ -101,9 +107,27 @@ class PostgresPortfolioIntegrationTests {
 			assertEquals(1, valuation.positions().size());
 			assertEquals(0, new BigDecimal("70.20").compareTo(valuation.positions().get(0).marketValue()));
 			assertEquals("BRL", valuation.currencySummaries().get(0).currency());
+
+			var effectiveIncome = incomeEventService.createManual(userId, portfolioId, new ManualIncomeEventCreateRequest(
+					"PETR4", "Petrobras PN", AssetMarket.BR, AssetType.STOCK, "BRL", IncomeEventType.DIVIDEND,
+					LocalDate.now(), new BigDecimal("7.50"), null, null, null, "PostgreSQL test"));
+			var pendingIncome = incomeEventService.createManual(userId, portfolioId, new ManualIncomeEventCreateRequest(
+					"PETR4", "Petrobras PN", AssetMarket.BR, AssetType.STOCK, "BRL", IncomeEventType.DISTRIBUTION,
+					LocalDate.now().plusDays(5), new BigDecimal("3.00"), null, null, null, null));
+			assertEquals(IncomeEventStatus.EFFECTIVE, effectiveIncome.status());
+			assertEquals(IncomeEventStatus.PENDING, pendingIncome.status());
+			assertEquals(2, jdbcTemplate.queryForObject("select count(*) from portfolio_income_events where portfolio_id = ?", Integer.class, portfolioId));
+			assertEquals(pendingIncome.id(), incomeEventService.findAll(userId, portfolioId).get(0).id());
+			assertEquals(0, new BigDecimal("7.50").compareTo(incomeEventService.summary(userId, portfolioId).consolidatedReceivedAmount()));
+			assertThrows(PortfolioIncomeEventConflictException.class, () -> incomeEventService.createManual(userId, createdPortfolioId,
+					new ManualIncomeEventCreateRequest("PETR4", "Petrobras PN", AssetMarket.BR, AssetType.STOCK, "BRL", IncomeEventType.DIVIDEND,
+							LocalDate.now(), new BigDecimal("7.50"), null, null, null, "duplicate")));
+			incomeEventService.cancel(userId, portfolioId, pendingIncome.id());
+			assertEquals(IncomeEventStatus.CANCELLED, incomeEventService.findAll(userId, portfolioId).get(0).status());
 			assertEquals(List.of(), positionPersistenceTables());
 			assertEquals(List.of(), valuationPersistenceTables());
 			assertThrows(PortfolioConflictException.class, () -> portfolioService.delete(userId, createdPortfolioId));
+			deleteIncomeEvents(portfolioId);
 			deleteTransactions(portfolioId);
 
 			portfolioService.delete(userId, portfolioId);
@@ -114,6 +138,7 @@ class PostgresPortfolioIntegrationTests {
 		}
 		finally {
 			if (portfolioId != null) {
+				deleteIncomeEvents(portfolioId);
 				deleteTransactions(portfolioId);
 				portfolioRepository.deleteById(portfolioId);
 			}
@@ -128,6 +153,9 @@ class PostgresPortfolioIntegrationTests {
 
 	private void deleteTransactions(UUID portfolioId) {
 		jdbcTemplate.update("delete from portfolio_transactions where portfolio_id = ?", portfolioId);
+	}
+	private void deleteIncomeEvents(UUID portfolioId) {
+		jdbcTemplate.update("delete from portfolio_income_events where portfolio_id = ?", portfolioId);
 	}
 
 	private List<String> assetPersistenceTables() {

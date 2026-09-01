@@ -116,7 +116,7 @@ class AssetSearchIntegrationTests {
 		HISTORICAL_EXCHANGE_AVAILABLE.set(false);
 		try {
 			Session session = session(); UUID portfolioId = portfolio(session.user()).getId();
-			transaction(session, portfolioId, "MSFT", "US", "USD", "1", "100", LocalDate.now().minusDays(1));
+			transaction(session, portfolioId, "MSFT", "US", "USD", "1", "100", LocalDate.now().minusDays(2));
 			mockMvc.perform(get("/api/portfolios/{id}/valuation", portfolioId).header("Authorization", "Bearer " + session.token()))
 					.andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.code").value("EXCHANGE_RATE_UNAVAILABLE"))
 					.andExpect(jsonPath("$.positions").doesNotExist());
