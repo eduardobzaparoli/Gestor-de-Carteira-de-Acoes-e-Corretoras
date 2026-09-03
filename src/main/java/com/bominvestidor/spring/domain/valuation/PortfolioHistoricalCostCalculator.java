@@ -17,14 +17,20 @@ public final class PortfolioHistoricalCostCalculator {
 	private static final MathContext PRECISION = MathContext.DECIMAL128;
 
 	public PortfolioHistoricalCost calculate(List<PortfolioTransactionEntity> transactions, Map<UUID, ExchangeRate> historicalRates) {
-		Map<PositionKey, Accumulator> positions = new LinkedHashMap<>();
+		Map<PositionKey, HistoricalPositionAccumulator> positions = new LinkedHashMap<>();
 		Map<String, ExchangeRate> ratesUsed = new LinkedHashMap<>();
 		transactions.stream().filter(transaction -> transaction.getStatus() == TransactionStatus.EFFECTIVE)
 				.sorted(Comparator.comparing(PortfolioTransactionEntity::getTransactionDate)
 						.thenComparing(PortfolioTransactionEntity::getCreatedAt))
-				.forEach(transaction -> positions.computeIfAbsent(new PositionKey(transaction), ignored -> new Accumulator())
-						.apply(transaction, historicalRates.get(transaction.getId()), ratesUsed));
-		BigDecimal investedValue = positions.values().stream().map(Accumulator::costInBrl)
+				.forEach(transaction -> {
+					ExchangeRate rate = historicalRates.get(transaction.getId());
+					positions.computeIfAbsent(new PositionKey(transaction), ignored -> new HistoricalPositionAccumulator())
+							.apply(transaction, rate);
+					if (transaction.getType() == TransactionType.BUY && !"BRL".equalsIgnoreCase(transaction.getCurrency()) && rate != null) {
+						ratesUsed.put(rate.sourceCurrency() + ":" + rate.referenceDate(), rate);
+					}
+				});
+		BigDecimal investedValue = positions.values().stream().map(HistoricalPositionAccumulator::costInBrl)
 				.reduce(BigDecimal.ZERO, (left, right) -> left.add(right, PRECISION));
 		return new PortfolioHistoricalCost(investedValue, ratesUsed.values().stream()
 				.sorted(Comparator.comparing(ExchangeRate::referenceDate).thenComparing(ExchangeRate::sourceCurrency)).toList());
@@ -32,30 +38,5 @@ public final class PortfolioHistoricalCostCalculator {
 
 	private record PositionKey(String ticker, com.bominvestidor.spring.domain.asset.AssetMarket market) {
 		private PositionKey(PortfolioTransactionEntity transaction) { this(transaction.getTicker(), transaction.getMarket()); }
-	}
-
-	private static final class Accumulator {
-		private BigDecimal quantity = BigDecimal.ZERO;
-		private BigDecimal costInBrl = BigDecimal.ZERO;
-
-		private void apply(PortfolioTransactionEntity transaction, ExchangeRate rate, Map<String, ExchangeRate> ratesUsed) {
-			if (transaction.getType() == TransactionType.BUY) {
-				quantity = quantity.add(transaction.getQuantity(), PRECISION);
-				BigDecimal cost = transaction.getQuantity().multiply(transaction.getUnitPrice(), PRECISION).add(transaction.getCosts(), PRECISION);
-				if (!"BRL".equalsIgnoreCase(transaction.getCurrency())) {
-					if (rate == null) throw new IllegalArgumentException("Missing historical exchange rate");
-					cost = cost.multiply(rate.rate(), PRECISION);
-					ratesUsed.put(rate.sourceCurrency() + ":" + rate.referenceDate(), rate);
-				}
-				costInBrl = costInBrl.add(cost, PRECISION);
-				return;
-			}
-			BigDecimal averageCost = quantity.signum() == 0 ? BigDecimal.ZERO : costInBrl.divide(quantity, PRECISION);
-			quantity = quantity.subtract(transaction.getQuantity(), PRECISION);
-			costInBrl = costInBrl.subtract(transaction.getQuantity().multiply(averageCost, PRECISION), PRECISION);
-			if (quantity.signum() == 0) { quantity = BigDecimal.ZERO; costInBrl = BigDecimal.ZERO; }
-		}
-
-		private BigDecimal costInBrl() { return costInBrl; }
 	}
 }

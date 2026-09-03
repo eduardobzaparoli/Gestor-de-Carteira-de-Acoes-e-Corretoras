@@ -168,6 +168,13 @@ public class GlobalExceptionHandler {
 				request.getRequestURI(), List.of());
 	}
 
+	@ExceptionHandler(HistoricalPriceUnavailableException.class)
+	ResponseEntity<ApiErrorResponse> handleHistoricalPriceUnavailable(HistoricalPriceUnavailableException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.SERVICE_UNAVAILABLE, "HISTORICAL_PRICE_UNAVAILABLE", exception.getMessage(),
+				request.getRequestURI(), List.of());
+	}
+
 	@ExceptionHandler(ExchangeRateUnavailableException.class)
 	ResponseEntity<ApiErrorResponse> handleExchangeRateUnavailable(ExchangeRateUnavailableException exception,
 			HttpServletRequest request) {
