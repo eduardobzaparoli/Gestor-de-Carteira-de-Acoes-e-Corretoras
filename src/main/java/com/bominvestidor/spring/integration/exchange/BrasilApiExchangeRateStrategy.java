@@ -37,7 +37,7 @@ public class BrasilApiExchangeRateStrategy implements ExchangeRateStrategy {
 
 	private Optional<ExchangeRate> findForDate(LocalDate date) {
 		try {
-			BrasilApiExchangeResponse response = client.get().uri("/cambio/v1/cotacao/{currency}/{date}", "USD", date)
+			BrasilApiExchangeResponse response = client.get().uri("/api/cambio/v1/cotacao/{currency}/{date}", "USD", date)
 					.retrieve().body(BrasilApiExchangeResponse.class);
 			if (response == null || response.quotes() == null) return Optional.empty();
 			LocalDate referenceDate = response.referenceDate() == null ? date : response.referenceDate();
@@ -45,7 +45,9 @@ public class BrasilApiExchangeRateStrategy implements ExchangeRateStrategy {
 					.map(BrasilApiQuote::buyRate).filter(rate -> rate != null && rate.signum() > 0)
 					.findFirst().map(rate -> new ExchangeRate("USD", "BRL", rate, referenceDate));
 		} catch (RestClientResponseException exception) {
-			if (exception.getStatusCode().value() == 404) return Optional.empty();
+			// BrasilAPI rejects today's still-forming PTAX with 400. Treat it like a
+			// missing business-day quote so the caller can use the previous close.
+			if (exception.getStatusCode().value() == 400 || exception.getStatusCode().value() == 404) return Optional.empty();
 			throw unavailable();
 		} catch (RestClientException exception) {
 			throw unavailable();

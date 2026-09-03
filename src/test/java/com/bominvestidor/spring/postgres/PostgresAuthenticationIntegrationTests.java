@@ -20,7 +20,10 @@ import com.bominvestidor.spring.exception.DuplicateEmailException;
 import com.bominvestidor.spring.repository.user.UserRepository;
 import com.bominvestidor.spring.service.auth.AuthService;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+		"app.security.jwt.secret=test-only-secret-key-with-at-least-32-bytes",
+		"app.security.jwt.expiration=PT15M"
+})
 @ActiveProfiles("postgres")
 @EnabledIfSystemProperty(named = "runPostgresTests", matches = "true")
 class PostgresAuthenticationIntegrationTests {

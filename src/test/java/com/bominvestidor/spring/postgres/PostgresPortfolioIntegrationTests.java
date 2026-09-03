@@ -7,7 +7,9 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.NavigableMap;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -25,6 +27,9 @@ import com.bominvestidor.spring.domain.asset.AssetCandidate;
 import com.bominvestidor.spring.domain.asset.AssetMarket;
 import com.bominvestidor.spring.domain.asset.AssetQuote;
 import com.bominvestidor.spring.domain.asset.AssetType;
+import com.bominvestidor.spring.domain.evolution.HistoricalAssetKey;
+import com.bominvestidor.spring.domain.evolution.HistoricalAssetPrice;
+import com.bominvestidor.spring.domain.evolution.HistoricalAssetPriceSeries;
 import com.bominvestidor.spring.domain.user.UserRole;
 import com.bominvestidor.spring.dto.auth.RegisterRequest;
 import com.bominvestidor.spring.dto.portfolio.PortfolioCreateRequest;
@@ -39,6 +44,8 @@ import com.bominvestidor.spring.exception.PortfolioNotFoundException;
 import com.bominvestidor.spring.exception.PortfolioConflictException;
 import com.bominvestidor.spring.integration.asset.AssetSearchStrategy;
 import com.bominvestidor.spring.integration.asset.AssetSearchStrategyResolver;
+import com.bominvestidor.spring.integration.historicalprice.HistoricalAssetPriceStrategy;
+import com.bominvestidor.spring.integration.historicalprice.HistoricalAssetPriceStrategyResolver;
 import com.bominvestidor.spring.repository.brokerage.BrokerageRepository;
 import com.bominvestidor.spring.repository.portfolio.PortfolioRepository;
 import com.bominvestidor.spring.repository.user.UserRepository;
@@ -49,9 +56,13 @@ import com.bominvestidor.spring.service.position.PortfolioPositionService;
 import com.bominvestidor.spring.service.valuation.PortfolioMarketValuationService;
 import com.bominvestidor.spring.service.transaction.PortfolioTransactionService;
 import com.bominvestidor.spring.service.income.PortfolioIncomeEventService;
+import com.bominvestidor.spring.service.evolution.PortfolioValueEvolutionService;
 import com.bominvestidor.spring.exception.PortfolioIncomeEventConflictException;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+		"app.security.jwt.secret=test-only-secret-key-with-at-least-32-bytes",
+		"app.security.jwt.expiration=PT15M"
+})
 @ActiveProfiles("postgres")
 @EnabledIfSystemProperty(named = "runPostgresTests", matches = "true")
 @Import(PostgresPortfolioIntegrationTests.AssetProviderStubConfiguration.class)
@@ -68,6 +79,7 @@ class PostgresPortfolioIntegrationTests {
 	@Autowired private PortfolioPositionService positionService;
 	@Autowired private PortfolioMarketValuationService valuationService;
 	@Autowired private PortfolioIncomeEventService incomeEventService;
+	@Autowired private PortfolioValueEvolutionService evolutionService;
 
 	@Test
 	void initializesSchemaAndSupportsPortfolioLifecycle() {
@@ -98,7 +110,7 @@ class PostgresPortfolioIntegrationTests {
 			assertEquals(persistedRowsBefore, persistedRows());
 
 			transactionService.create(userId, portfolioId, new PortfolioTransactionCreateRequest("PETR4", "Petrobras PN",
-					AssetMarket.BR, AssetType.STOCK, "BRL", TransactionType.BUY, LocalDate.now(), new BigDecimal("2"),
+					AssetMarket.BR, AssetType.STOCK, "BRL", TransactionType.BUY, LocalDate.now().minusDays(1), new BigDecimal("2"),
 					new BigDecimal("35.10"), null));
 			assertEquals(1, jdbcTemplate.queryForObject(
 					"select count(*) from portfolio_transactions where portfolio_id = ?", Integer.class, portfolioId));
@@ -107,6 +119,12 @@ class PostgresPortfolioIntegrationTests {
 			assertEquals(1, valuation.positions().size());
 			assertEquals(0, new BigDecimal("70.20").compareTo(valuation.positions().get(0).marketValue()));
 			assertEquals("BRL", valuation.currencySummaries().get(0).currency());
+			var evolution = evolutionService.find(userId, portfolioId);
+			assertEquals(2, evolution.size());
+			assertEquals(LocalDate.now().minusDays(1), evolution.get(0).date());
+			assertEquals(0, new BigDecimal("70.20").compareTo(evolution.get(0).investedValue()));
+			assertEquals(0, new BigDecimal("70.20").compareTo(evolution.get(1).marketValue()));
+			assertEquals(List.of(), evolutionPersistenceTables());
 
 			var effectiveIncome = incomeEventService.createManual(userId, portfolioId, new ManualIncomeEventCreateRequest(
 					"PETR4", "Petrobras PN", AssetMarket.BR, AssetType.STOCK, "BRL", IncomeEventType.DIVIDEND,
@@ -184,6 +202,14 @@ class PostgresPortfolioIntegrationTests {
 				""", String.class);
 	}
 
+	private List<String> evolutionPersistenceTables() {
+		return jdbcTemplate.queryForList("""
+				select table_name from information_schema.tables
+				where table_schema = 'public' and lower(table_name) like '%evolution%'
+				order by table_name
+				""", String.class);
+	}
+
 	private List<Long> persistedRows() {
 		return List.of(
 				jdbcTemplate.queryForObject("select count(*) from users", Long.class),
@@ -210,6 +236,19 @@ class PostgresPortfolioIntegrationTests {
 				}
 				@Override public Optional<AssetQuote> findQuote(String ticker) {
 					return Optional.of(new AssetQuote(ticker, "BRL", new BigDecimal("35.10")));
+				}
+			}));
+		}
+
+		@Bean
+		@Primary
+		HistoricalAssetPriceStrategyResolver historicalAssetPriceStrategyResolver() {
+			return new HistoricalAssetPriceStrategyResolver(List.of(new HistoricalAssetPriceStrategy() {
+				@Override public AssetMarket market() { return AssetMarket.BR; }
+				@Override public HistoricalAssetPriceSeries findSeries(String ticker, String currency, LocalDate startDate, LocalDate endDate) {
+					NavigableMap<LocalDate, HistoricalAssetPrice> prices = new TreeMap<>();
+					prices.put(endDate, new HistoricalAssetPrice(endDate, new BigDecimal("35.10")));
+					return new HistoricalAssetPriceSeries(new HistoricalAssetKey(AssetMarket.BR, ticker, currency), prices);
 				}
 			}));
 		}
