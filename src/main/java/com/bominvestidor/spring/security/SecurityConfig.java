@@ -22,6 +22,8 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
+
 
 @Configuration
 @EnableMethodSecurity
@@ -32,7 +34,8 @@ public class SecurityConfig {
 	SecurityFilterChain securityFilterChain(HttpSecurity http,
 			JsonAuthenticationEntryPoint authenticationEntryPoint,
 			JsonAccessDeniedHandler accessDeniedHandler,
-			JwtAuthenticationConverter jwtAuthenticationConverter) throws Exception {
+			JwtAuthenticationConverter jwtAuthenticationConverter,
+			ActiveAccountFilter activeAccountFilter) throws Exception {
 		http
 				.csrf(csrf -> csrf.disable())
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -49,6 +52,7 @@ public class SecurityConfig {
 						.accessDeniedHandler(accessDeniedHandler)
 						.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)))
 				.headers(headers -> headers.frameOptions(frameOptions -> frameOptions.sameOrigin()));
+		http.addFilterAfter(activeAccountFilter, BearerTokenAuthenticationFilter.class);
 
 		return http.build();
 	}

@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import com.bominvestidor.spring.domain.user.UserRole;
+import com.bominvestidor.spring.domain.user.UserStatus;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -36,6 +37,10 @@ public class UserEntity {
 	@Column(nullable = false, length = 30)
 	private UserRole role;
 
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 30)
+	private UserStatus status;
+
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
@@ -45,15 +50,21 @@ public class UserEntity {
 	protected UserEntity() {
 	}
 
-	public UserEntity(UUID id, String name, String email, String passwordHash, UserRole role,
+	public UserEntity(UUID id, String name, String email, String passwordHash, UserRole role, UserStatus status,
 			Instant createdAt, Instant updatedAt) {
 		this.id = id;
 		this.name = name;
 		this.email = email;
 		this.passwordHash = passwordHash;
 		this.role = role;
+		this.status = status;
 		this.createdAt = createdAt;
 		this.updatedAt = updatedAt;
+	}
+
+	public UserEntity(UUID id, String name, String email, String passwordHash, UserRole role,
+			Instant createdAt, Instant updatedAt) {
+		this(id, name, email, passwordHash, role, UserStatus.ACTIVE, createdAt, updatedAt);
 	}
 
 	@PrePersist
@@ -67,6 +78,9 @@ public class UserEntity {
 		}
 		if (updatedAt == null) {
 			updatedAt = createdAt;
+		}
+		if (status == null) {
+			status = UserStatus.ACTIVE;
 		}
 	}
 
@@ -93,6 +107,21 @@ public class UserEntity {
 
 	public UserRole getRole() {
 		return role;
+	}
+
+	public UserStatus getStatus() {
+		return status;
+	}
+
+	public void update(String name, String email, String passwordHash, UserRole role) {
+		this.name = name;
+		this.email = email;
+		this.passwordHash = passwordHash;
+		this.role = role;
+	}
+
+	public void changeStatus(UserStatus status) {
+		this.status = status;
 	}
 
 	public Instant getCreatedAt() {

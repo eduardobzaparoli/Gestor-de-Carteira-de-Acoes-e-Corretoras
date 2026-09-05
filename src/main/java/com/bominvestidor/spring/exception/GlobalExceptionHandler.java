@@ -98,6 +98,23 @@ public class GlobalExceptionHandler {
 		return response(HttpStatus.CONFLICT, exception.getCode(), exception.getMessage(), request.getRequestURI(), List.of());
 	}
 
+	@ExceptionHandler(UserNotFoundException.class)
+	ResponseEntity<ApiErrorResponse> handleUserNotFound(UserNotFoundException exception, HttpServletRequest request) {
+		return response(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", exception.getMessage(), request.getRequestURI(), List.of());
+	}
+
+	@ExceptionHandler(AdminUserConflictException.class)
+	ResponseEntity<ApiErrorResponse> handleAdminUserConflict(AdminUserConflictException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.CONFLICT, exception.getCode(), exception.getMessage(), request.getRequestURI(), List.of());
+	}
+
+	@ExceptionHandler(AccountInactiveException.class)
+	ResponseEntity<ApiErrorResponse> handleAccountInactive(AccountInactiveException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.UNAUTHORIZED, "ACCOUNT_INACTIVE", exception.getMessage(), request.getRequestURI(), List.of());
+	}
+
 	@ExceptionHandler(PortfolioConflictException.class)
 	ResponseEntity<ApiErrorResponse> handlePortfolioConflict(PortfolioConflictException exception,
 			HttpServletRequest request) {

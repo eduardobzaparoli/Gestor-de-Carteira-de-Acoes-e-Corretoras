@@ -26,6 +26,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import com.bominvestidor.spring.repository.user.UserRepository;
+import com.bominvestidor.spring.repository.brokerage.BrokerageRepository;
+import com.bominvestidor.spring.repository.income.PortfolioIncomeEventRepository;
+import com.bominvestidor.spring.repository.portfolio.PortfolioRepository;
+import com.bominvestidor.spring.repository.transaction.PortfolioTransactionRepository;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -45,10 +49,26 @@ class AuthenticationIntegrationTests {
 	private UserRepository userRepository;
 
 	@Autowired
+	private BrokerageRepository brokerageRepository;
+
+	@Autowired
+	private PortfolioRepository portfolioRepository;
+
+	@Autowired
+	private PortfolioTransactionRepository transactionRepository;
+
+	@Autowired
+	private PortfolioIncomeEventRepository incomeEventRepository;
+
+	@Autowired
 	private JwtEncoder jwtEncoder;
 
 	@BeforeEach
 	void clearUsers() {
+		incomeEventRepository.deleteAll();
+		transactionRepository.deleteAll();
+		portfolioRepository.deleteAll();
+		brokerageRepository.deleteAll();
 		userRepository.deleteAll();
 	}
 

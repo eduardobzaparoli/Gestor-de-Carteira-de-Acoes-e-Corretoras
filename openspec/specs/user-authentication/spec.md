@@ -59,10 +59,10 @@ O sistema MUST armazenar somente uma representação criptográfica unidireciona
 - **THEN** a resposta contém somente `id`, `name`, `email` e `role`, sem senha ou hash
 
 ### Requirement: Autenticação por credenciais
-O sistema SHALL disponibilizar `POST /api/auth/login` para autenticar um usuário por e-mail e senha e, em caso de sucesso, emitir um token JWT do tipo Bearer com expiração configurável.
+O sistema SHALL disponibilizar `POST /api/auth/login` para autenticar um usuário ativo por e-mail e senha e, em caso de sucesso, emitir um token JWT do tipo Bearer com expiração configurável.
 
 #### Scenario: Login realizado com sucesso
-- **WHEN** um usuário informa e-mail normalizado para uma conta existente e a senha correta
+- **WHEN** um usuário ativo informa e-mail normalizado para uma conta existente e a senha correta
 - **THEN** o sistema responde com status `200`, token JWT, tipo `Bearer`, instante de expiração e dados públicos do usuário
 
 #### Scenario: E-mail inexistente
@@ -73,11 +73,15 @@ O sistema SHALL disponibilizar `POST /api/auth/login` para autenticar um usuári
 - **WHEN** uma pessoa tenta entrar com a senha incorreta de uma conta existente
 - **THEN** o sistema responde com o mesmo status `401`, código e mensagem usados para e-mail inexistente
 
+#### Scenario: Conta inativa tenta entrar
+- **WHEN** uma pessoa informa as credenciais corretas de uma conta inativa
+- **THEN** o sistema responde com status `401` e código `ACCOUNT_INACTIVE`, sem emitir token
+
 ### Requirement: Autenticação stateless por JWT
-O sistema MUST validar assinatura, expiração e identidade de tokens JWT em requisições protegidas, sem criar sessão no servidor.
+O sistema MUST validar assinatura, expiração, identidade e estado ativo da conta de tokens JWT em requisições protegidas, sem criar sessão no servidor.
 
 #### Scenario: Token válido
-- **WHEN** uma requisição protegida apresenta um token Bearer válido e não expirado
+- **WHEN** uma requisição protegida apresenta um token Bearer válido e não expirado de uma conta ativa
 - **THEN** o sistema autentica a identidade e disponibiliza seu identificador e papel durante a requisição
 
 #### Scenario: Token ausente
@@ -87,6 +91,10 @@ O sistema MUST validar assinatura, expiração e identidade de tokens JWT em req
 #### Scenario: Token inválido ou expirado
 - **WHEN** uma requisição protegida apresenta token adulterado, malformado ou expirado
 - **THEN** o sistema rejeita o acesso com status `401` e resposta JSON sem revelar detalhes criptográficos
+
+#### Scenario: Token emitido antes da desativação
+- **WHEN** uma requisição protegida apresenta token válido de uma conta que foi desativada após a emissão
+- **THEN** o sistema rejeita o acesso com status `401` e código `ACCOUNT_INACTIVE`
 
 ### Requirement: Política padrão de acesso
 O sistema SHALL manter públicas somente as rotas de cadastro, login e infraestrutura explicitamente autorizadas; os demais endpoints SHALL exigir autenticação. Quando um endpoint exigir um papel que o usuário não possui, o sistema SHALL responder com status `403`.
@@ -122,8 +130,19 @@ O sistema MUST retornar erros de validação, autenticação, autorização e co
 - **THEN** o sistema responde com status `400` usando a mesma estrutura JSON padronizada
 
 ### Requirement: Persistência compatível com os bancos suportados
-O sistema MUST persistir usuários e aplicar a restrição de unicidade do e-mail tanto no H2 quanto no PostgreSQL, mantendo o mesmo comportamento funcional nos dois bancos. Nesta primeira mudança, o esquema dos ambientes locais de desenvolvimento e teste SHALL ser gerenciado automaticamente pelo provedor JPA.
+O sistema MUST persistir usuários e aplicar a restrição de unicidade do e-mail tanto no H2 quanto no PostgreSQL, mantendo o mesmo comportamento funcional nos dois bancos. Nos ambientes H2 de desenvolvimento e teste, o esquema SHALL ser gerenciado automaticamente pelo provedor JPA.
 
 #### Scenario: Inicialização de banco vazio
-- **WHEN** a aplicação inicia sobre um banco H2 ou PostgreSQL local vazio com um perfil de desenvolvimento ou teste
+- **WHEN** a aplicação inicia sobre um banco H2 vazio com um perfil de desenvolvimento ou teste
 - **THEN** a estrutura necessária para usuários é criada automaticamente a partir do mapeamento persistente e a aplicação fica pronta para cadastro e login
+
+### Requirement: Persistência compatível do estado de conta
+O sistema SHALL manter o estado de conta persistido de forma compatível com H2 e PostgreSQL. Em produção, a evolução de `users.status` MUST ser aplicada por uma migração Flyway versionada, que preserve os usuários existentes como ativos e seja registrada no histórico do banco.
+
+#### Scenario: Banco PostgreSQL existente recebe a migração
+- **WHEN** uma versão da aplicação com esta mudança inicia em produção ou no perfil de integração PostgreSQL contra um banco existente que ainda não possui histórico Flyway
+- **THEN** o sistema estabelece o baseline sem recriar dados e aplica uma única vez a migração que inclui `users.status` com valor `ACTIVE` às contas existentes
+
+#### Scenario: Ambiente H2 de desenvolvimento ou teste
+- **WHEN** a aplicação inicia com perfil de desenvolvimento ou teste baseado em H2
+- **THEN** o Flyway não executa a migração de produção e o Hibernate continua responsável pelo ciclo de vida do esquema desse ambiente

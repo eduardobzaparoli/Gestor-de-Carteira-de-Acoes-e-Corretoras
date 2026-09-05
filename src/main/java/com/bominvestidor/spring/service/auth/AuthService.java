@@ -13,12 +13,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.bominvestidor.spring.domain.user.User;
 import com.bominvestidor.spring.domain.user.UserRole;
+import com.bominvestidor.spring.domain.user.UserStatus;
 import com.bominvestidor.spring.dto.auth.AuthenticationResponse;
 import com.bominvestidor.spring.dto.auth.LoginRequest;
 import com.bominvestidor.spring.dto.auth.RegisterRequest;
 import com.bominvestidor.spring.dto.user.PublicUserResponse;
 import com.bominvestidor.spring.entity.user.UserEntity;
 import com.bominvestidor.spring.exception.AuthenticatedUserNotFoundException;
+import com.bominvestidor.spring.exception.AccountInactiveException;
 import com.bominvestidor.spring.exception.DuplicateEmailException;
 import com.bominvestidor.spring.exception.InvalidCredentialsException;
 import com.bominvestidor.spring.exception.InvalidUserDataException;
@@ -68,6 +70,7 @@ public class AuthService {
 				email,
 				passwordEncoder.encode(request.password()),
 				UserRole.INVESTOR,
+				UserStatus.ACTIVE,
 				now,
 				now);
 
@@ -90,6 +93,9 @@ public class AuthService {
 				.map(userMapper::toDomain)
 				.filter(found -> passwordEncoder.matches(request.password(), found.passwordHash()))
 				.orElseThrow(InvalidCredentialsException::new);
+		if (user.status() == UserStatus.INACTIVE) {
+			throw new AccountInactiveException();
+		}
 		IssuedToken issuedToken = jwtTokenService.issue(user);
 
 		return new AuthenticationResponse(
