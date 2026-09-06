@@ -2,13 +2,22 @@ package com.bominvestidor.spring.controller;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -20,19 +29,28 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import com.bominvestidor.spring.domain.user.UserRole;
+import com.bominvestidor.spring.domain.asset.AssetMarket;
+import com.bominvestidor.spring.domain.asset.AssetType;
+import com.bominvestidor.spring.domain.transaction.TransactionStatus;
+import com.bominvestidor.spring.domain.transaction.TransactionType;
 import com.bominvestidor.spring.dto.auth.LoginRequest;
 import com.bominvestidor.spring.dto.auth.RegisterRequest;
+import com.bominvestidor.spring.dto.transaction.PortfolioTransactionCreateRequest;
 import com.bominvestidor.spring.entity.brokerage.BrokerageEntity;
 import com.bominvestidor.spring.entity.portfolio.PortfolioEntity;
+import com.bominvestidor.spring.entity.transaction.PortfolioTransactionEntity;
 import com.bominvestidor.spring.entity.user.UserEntity;
 import com.bominvestidor.spring.repository.brokerage.BrokerageRepository;
 import com.bominvestidor.spring.repository.portfolio.PortfolioRepository;
+import com.bominvestidor.spring.repository.transaction.PortfolioTransactionRepository;
 import com.bominvestidor.spring.repository.user.UserRepository;
+import com.bominvestidor.spring.exception.PortfolioTransactionConflictException;
 import com.bominvestidor.spring.service.auth.AuthService;
+import com.bominvestidor.spring.service.transaction.PortfolioTransactionService;
 
 @SpringBootTest @AutoConfigureMockMvc @ActiveProfiles("test") @Import(PortfolioTransactionIntegrationTests.TestClockConfiguration.class)
 class PortfolioTransactionIntegrationTests {
-	@Autowired MockMvc mockMvc; @Autowired AuthService auth; @Autowired UserRepository users; @Autowired BrokerageRepository brokerages; @Autowired PortfolioRepository portfolios; @Autowired MutableClock clock;
+	@Autowired MockMvc mockMvc; @Autowired AuthService auth; @Autowired UserRepository users; @Autowired BrokerageRepository brokerages; @Autowired PortfolioRepository portfolios; @Autowired PortfolioTransactionRepository transactions; @Autowired PortfolioTransactionService transactionService; @Autowired MutableClock clock;
 
 	@Test void recordsHistoryReservesFutureSalesAndPreservesPortfolioLog() throws Exception {
 		clock.set(Instant.now());
@@ -65,6 +83,59 @@ class PortfolioTransactionIntegrationTests {
 			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.fieldErrors[0].field").value("quantity"));
 		Session other = session();
 		mockMvc.perform(get(path(portfolioId)).header("Authorization", bearer(other))).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("PORTFOLIO_NOT_FOUND"));
+	}
+
+	@Test void rejectsEffectiveSaleThatWouldConsumeFutureReservation() throws Exception {
+		clock.set(Instant.now());
+		LocalDate today = LocalDate.now(clock); Session session = session(); UUID portfolioId = portfolio(session.user()).getId();
+		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json")
+			.content(body("BUY", today.minusDays(1).toString(), "10"))).andExpect(status().isCreated());
+		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json")
+			.content(body("SELL", today.plusDays(2).toString(), "7"))).andExpect(status().isCreated());
+		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json")
+			.content(body("SELL", today.toString(), "4"))).andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("INSUFFICIENT_ASSET_QUANTITY"));
+	}
+
+	@Test void keepsDuePendingSaleWhenItsEffectiveBalanceWouldBeNegative() throws Exception {
+		clock.set(Instant.now());
+		LocalDate today = LocalDate.now(clock); Session session = session(); UUID portfolioId = portfolio(session.user()).getId();
+		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json")
+			.content(body("BUY", today.minusDays(1).toString(), "10"))).andExpect(status().isCreated());
+		Instant now = clock.instant();
+		PortfolioTransactionEntity invalidPendingSale = transactions.saveAndFlush(new PortfolioTransactionEntity(UUID.randomUUID(),
+			portfolios.getReferenceById(portfolioId), "PETR4", "Petrobras", AssetMarket.BR, AssetType.STOCK, "BRL",
+			TransactionType.SELL, TransactionStatus.PENDING, today.plusDays(1), new BigDecimal("11"), new BigDecimal("35.10"),
+			BigDecimal.ZERO, now, now));
+		clock.set(today.plusDays(2).atTime(12, 0).toInstant(ZoneOffset.UTC));
+		mockMvc.perform(get(path(portfolioId)).header("Authorization", bearer(session))).andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("INSUFFICIENT_ASSET_QUANTITY"));
+		assertEquals(TransactionStatus.PENDING, transactions.findById(invalidPendingSale.getId()).orElseThrow().getStatus());
+	}
+
+	@Test void allowsOnlyOneConcurrentSaleToConsumeTheSameQuantity() throws Exception {
+		clock.set(Instant.now());
+		LocalDate today = LocalDate.now(clock); Session session = session(); UUID portfolioId = portfolio(session.user()).getId();
+		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json")
+			.content(body("BUY", today.minusDays(1).toString(), "10"))).andExpect(status().isCreated());
+		PortfolioTransactionCreateRequest sale = new PortfolioTransactionCreateRequest("PETR4", "Petrobras", AssetMarket.BR,
+			AssetType.STOCK, "BRL", TransactionType.SELL, today, new BigDecimal("7"), new BigDecimal("35.10"), BigDecimal.ZERO);
+		CountDownLatch start = new CountDownLatch(1); ExecutorService executor = Executors.newFixedThreadPool(2);
+		try {
+			List<Future<String>> outcomes = new ArrayList<>();
+			for (int index = 0; index < 2; index++) outcomes.add(executor.submit(() -> {
+				start.await(5, TimeUnit.SECONDS);
+				try { transactionService.create(session.user().getId(), portfolioId, sale); return "CREATED"; }
+				catch (PortfolioTransactionConflictException exception) { return exception.getCode(); }
+			}));
+			start.countDown();
+			List<String> results = new ArrayList<>();
+			for (Future<String> outcome : outcomes) results.add(outcome.get(10, TimeUnit.SECONDS));
+			assertEquals(1, results.stream().filter("CREATED"::equals).count());
+			assertEquals(1, results.stream().filter("INSUFFICIENT_ASSET_QUANTITY"::equals).count());
+		}
+		finally { executor.shutdownNow(); }
+		assertEquals(2, transactions.findAllByPortfolio_Id(portfolioId).size());
 	}
 
 	private String path(UUID portfolioId) { return "/api/portfolios/"+portfolioId+"/transactions"; }

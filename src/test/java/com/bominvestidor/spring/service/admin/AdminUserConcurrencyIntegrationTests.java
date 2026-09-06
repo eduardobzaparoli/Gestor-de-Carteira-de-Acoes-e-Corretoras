@@ -25,7 +25,12 @@ import com.bominvestidor.spring.domain.user.UserStatus;
 import com.bominvestidor.spring.dto.admin.AdminUserUpdateRequest;
 import com.bominvestidor.spring.entity.user.UserEntity;
 import com.bominvestidor.spring.exception.AdminUserConflictException;
+import com.bominvestidor.spring.repository.brokerage.BrokerageRepository;
+import com.bominvestidor.spring.repository.income.PortfolioIncomeEventRepository;
+import com.bominvestidor.spring.repository.portfolio.PortfolioRepository;
+import com.bominvestidor.spring.repository.transaction.PortfolioTransactionRepository;
 import com.bominvestidor.spring.repository.user.UserRepository;
+import com.bominvestidor.spring.support.IntegrationTestDataCleaner;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -33,15 +38,19 @@ class AdminUserConcurrencyIntegrationTests {
 
 	@Autowired private AdminUserService service;
 	@Autowired private UserRepository users;
+	@Autowired private BrokerageRepository brokerages;
+	@Autowired private PortfolioRepository portfolios;
+	@Autowired private PortfolioTransactionRepository transactions;
+	@Autowired private PortfolioIncomeEventRepository incomeEvents;
 
 	@BeforeEach
 	void clearUsers() {
-		users.deleteAll();
+		clearData();
 	}
 
 	@AfterEach
 	void clearUsersAfterTest() {
-		users.deleteAll();
+		clearData();
 	}
 
 	@Test
@@ -117,5 +126,9 @@ class AdminUserConcurrencyIntegrationTests {
 
 	private AdminUserUpdateRequest investorUpdate(String email) {
 		return new AdminUserUpdateRequest("Admin", email, "password123", UserRole.INVESTOR);
+	}
+
+	private void clearData() {
+		new IntegrationTestDataCleaner(incomeEvents, transactions, portfolios, brokerages, users).clear();
 	}
 }

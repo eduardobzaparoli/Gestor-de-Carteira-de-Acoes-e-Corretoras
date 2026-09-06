@@ -30,6 +30,7 @@ import com.bominvestidor.spring.repository.brokerage.BrokerageRepository;
 import com.bominvestidor.spring.repository.income.PortfolioIncomeEventRepository;
 import com.bominvestidor.spring.repository.portfolio.PortfolioRepository;
 import com.bominvestidor.spring.repository.transaction.PortfolioTransactionRepository;
+import com.bominvestidor.spring.support.IntegrationTestDataCleaner;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -65,11 +66,8 @@ class AuthenticationIntegrationTests {
 
 	@BeforeEach
 	void clearUsers() {
-		incomeEventRepository.deleteAll();
-		transactionRepository.deleteAll();
-		portfolioRepository.deleteAll();
-		brokerageRepository.deleteAll();
-		userRepository.deleteAll();
+		new IntegrationTestDataCleaner(incomeEventRepository, transactionRepository, portfolioRepository, brokerageRepository,
+				userRepository).clear();
 	}
 
 	@Test
