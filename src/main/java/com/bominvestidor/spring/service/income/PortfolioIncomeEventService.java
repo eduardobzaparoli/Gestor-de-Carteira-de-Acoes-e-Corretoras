@@ -46,6 +46,7 @@ import com.bominvestidor.spring.repository.income.PortfolioIncomeEventRepository
 import com.bominvestidor.spring.repository.transaction.PortfolioTransactionRepository;
 import com.bominvestidor.spring.service.exchange.ExchangeRateService;
 import com.bominvestidor.spring.service.portfolio.PortfolioService;
+import com.bominvestidor.spring.service.asset.AssetIdentityRules;
 
 @Service
 public class PortfolioIncomeEventService {
@@ -77,7 +78,8 @@ public class PortfolioIncomeEventService {
 		List<PortfolioTransactionEntity> transactions = transactionRepository.findAllByPortfolio_Id(portfolioId);
 		Map<String, PortfolioTransactionEntity> assets = transactions.stream()
 			.filter(item -> item.getStatus() == TransactionStatus.EFFECTIVE && item.getType() == TransactionType.BUY && item.getMarket() == market)
-			.sorted(Comparator.comparing(PortfolioTransactionEntity::getTransactionDate).reversed().thenComparing(PortfolioTransactionEntity::getCreatedAt).reversed())
+			.sorted(Comparator.comparing(PortfolioTransactionEntity::getTransactionDate).reversed()
+				.thenComparing(PortfolioTransactionEntity::getCreatedAt, Comparator.reverseOrder()))
 			.collect(java.util.stream.Collectors.toMap(item -> item.getTicker().toUpperCase(Locale.ROOT), item -> item, (first, ignored) -> first, LinkedHashMap::new));
 		return assets.values().stream().flatMap(asset -> provider.findEvents(asset.getTicker()).stream()
 			.map(event -> candidate(portfolioId, asset, transactions, event))).map(candidate -> toCandidateResponse(ownerId, portfolioId, candidate)).toList();
@@ -107,16 +109,18 @@ public class PortfolioIncomeEventService {
 		PortfolioEntity portfolio = portfolioService.ownedPortfolio(ownerId, portfolioId);
 		reconciliationService.reconcile(portfolioId);
 		String ticker = request.ticker().trim().toUpperCase(Locale.ROOT);
-		String currency = request.currency().trim().toUpperCase(Locale.ROOT);
-		if (!validCurrency(request.market(), currency)) throw invalid("currency", "Currency is invalid for the selected market");
-		boolean acquired = transactionRepository.findAllByPortfolio_Id(portfolioId).stream().anyMatch(item -> item.getStatus() == TransactionStatus.EFFECTIVE
-				&& item.getType() == TransactionType.BUY && item.getMarket() == request.market() && item.getTicker().equalsIgnoreCase(ticker));
-		if (!acquired) throw invalid("ticker", "Asset must have at least one effective purchase in this portfolio");
+		PortfolioTransactionEntity acquired = transactionRepository.findAllByPortfolio_Id(portfolioId).stream()
+				.filter(item -> item.getStatus() == TransactionStatus.EFFECTIVE && item.getType() == TransactionType.BUY && item.getTicker().equalsIgnoreCase(ticker))
+				.sorted(Comparator.comparing(PortfolioTransactionEntity::getTransactionDate).reversed()
+						.thenComparing(PortfolioTransactionEntity::getCreatedAt, Comparator.reverseOrder()))
+				.findFirst().orElseThrow(() -> conflict("ASSET_NOT_ACQUIRED", "Asset must have at least one effective purchase in this portfolio"));
+		if (!AssetIdentityRules.hasCompatibleCurrency(acquired.getMarket(), acquired.getCurrency()))
+			throw conflict("ASSET_NOT_ACQUIRED", "Asset has an incompatible market and currency");
 		String key = "manual|" + ticker + "|" + request.type() + "|" + request.paymentDate() + "|" + request.eligibilityDate() + "|"
 				+ request.receivedAmount().stripTrailingZeros().toPlainString() + "|" + request.unitAmount();
 		if (repository.existsByPortfolio_IdAndSourceAndEventKey(portfolioId, IncomeEventSource.MANUAL, key))
 			throw conflict("INCOME_EVENT_ALREADY_RECORDED", "Income event is already recorded");
-		PortfolioIncomeEventEntity entity = newEntity(portfolio, ticker, request.assetName().trim(), request.market(), request.assetType(), currency,
+		PortfolioIncomeEventEntity entity = newEntity(portfolio, ticker, acquired.getAssetName(), acquired.getMarket(), acquired.getAssetType(), acquired.getCurrency(),
 				request.type(), IncomeEventSource.MANUAL, key, request.eligibilityDate(), request.paymentDate(), request.eligibleQuantity(), request.unitAmount(),
 				null, request.receivedAmount(), null, request.notes());
 		try { return mapper.toResponse(repository.save(entity)); } catch (DataIntegrityViolationException exception) { throw conflict("INCOME_EVENT_ALREADY_RECORDED", "Income event is already recorded"); }
@@ -177,7 +181,6 @@ public class PortfolioIncomeEventService {
 		return new PortfolioIncomeEventEntity(UUID.randomUUID(), portfolio, ticker, assetName, market, assetType, currency, type, source, eventKey,
 				status, eligibilityDate, paymentDate, eligibleQuantity, unitAmount, expectedAmount, receivedAmount, blank(adjustmentReason) ? null : adjustmentReason.trim(), blank(notes) ? null : notes.trim(), now, now);
 	}
-	private boolean validCurrency(AssetMarket market, String currency) { return market == AssetMarket.BR ? "BRL".equals(currency) : "USD".equals(currency); }
 	private boolean blank(String value) { return value == null || value.isBlank(); }
 	private InvalidIncomeEventDataException invalid(String field, String message) { return new InvalidIncomeEventDataException(List.of(new FieldErrorResponse(field, message))); }
 	private PortfolioIncomeEventConflictException conflict(String code, String message) { return new PortfolioIncomeEventConflictException(code, message); }

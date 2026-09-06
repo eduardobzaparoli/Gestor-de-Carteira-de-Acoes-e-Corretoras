@@ -16,6 +16,7 @@ import com.bominvestidor.spring.domain.transaction.TransactionStates;
 import com.bominvestidor.spring.domain.transaction.TransactionType;
 import com.bominvestidor.spring.dto.transaction.PortfolioTransactionCreateRequest;
 import com.bominvestidor.spring.dto.transaction.PortfolioTransactionResponse;
+import com.bominvestidor.spring.domain.asset.SelectedAsset;
 import com.bominvestidor.spring.entity.portfolio.PortfolioEntity;
 import com.bominvestidor.spring.entity.transaction.PortfolioTransactionEntity;
 import com.bominvestidor.spring.exception.PortfolioTransactionConflictException;
@@ -23,6 +24,7 @@ import com.bominvestidor.spring.exception.PortfolioTransactionNotFoundException;
 import com.bominvestidor.spring.mapper.transaction.PortfolioTransactionMapper;
 import com.bominvestidor.spring.repository.transaction.PortfolioTransactionRepository;
 import com.bominvestidor.spring.service.portfolio.PortfolioService;
+import com.bominvestidor.spring.service.asset.AssetSelectionCache;
 
 @Service
 public class PortfolioTransactionService {
@@ -31,23 +33,28 @@ public class PortfolioTransactionService {
 	private final PortfolioTransactionMapper mapper;
 	private final PortfolioTransactionReconciliationService reconciliationService;
 	private final PortfolioTransactionBalanceService balanceService;
+	private final AssetSelectionCache selectionCache;
 	private final Clock clock;
 	public PortfolioTransactionService(PortfolioService portfolioService, PortfolioTransactionRepository repository,
 			PortfolioTransactionMapper mapper, PortfolioTransactionReconciliationService reconciliationService,
-			PortfolioTransactionBalanceService balanceService, Clock clock) { this.portfolioService=portfolioService; this.repository=repository; this.mapper=mapper; this.reconciliationService=reconciliationService; this.balanceService=balanceService; this.clock=clock; }
+			PortfolioTransactionBalanceService balanceService, AssetSelectionCache selectionCache, Clock clock) { this.portfolioService=portfolioService; this.repository=repository; this.mapper=mapper; this.reconciliationService=reconciliationService; this.balanceService=balanceService; this.selectionCache=selectionCache; this.clock=clock; }
 
 	@Transactional
 	public PortfolioTransactionResponse create(UUID ownerId, UUID portfolioId, PortfolioTransactionCreateRequest request) {
 		PortfolioEntity portfolio = portfolioService.ownedPortfolio(ownerId, portfolioId);
 		reconciliationService.reconcile(portfolioId);
+		SelectedAsset asset = selectionCache.find(request.assetSelectionId(), ownerId, portfolioId)
+				.orElseThrow(() -> conflict("ASSET_SELECTION_EXPIRED", "Asset selection is expired"));
 		Instant now = clock.instant();
 		TransactionStatus status = request.transactionDate().isAfter(LocalDate.now(clock)) ? TransactionStatus.PENDING : TransactionStatus.EFFECTIVE;
-		PortfolioTransactionEntity entity = new PortfolioTransactionEntity(UUID.randomUUID(), portfolio, request.ticker().trim().toUpperCase(Locale.ROOT),
-				request.assetName().trim(), request.market(), request.assetType(), request.currency().trim().toUpperCase(Locale.ROOT), request.type(),
+		PortfolioTransactionEntity entity = new PortfolioTransactionEntity(UUID.randomUUID(), portfolio, asset.ticker().trim().toUpperCase(Locale.ROOT),
+				asset.name().trim(), asset.market(), asset.assetType(), asset.currency().trim().toUpperCase(Locale.ROOT), request.type(),
 				status, request.transactionDate(), request.quantity(), request.unitPrice(), request.costs() == null ? BigDecimal.ZERO : request.costs(), now, now);
 		if (request.type() == TransactionType.SELL) balanceService.validateSale(
 				repository.findAllByPortfolio_IdOrderByTransactionDateAscCreatedAtAsc(portfolioId), entity);
-		return mapper.toResponse(repository.save(entity));
+		PortfolioTransactionResponse response = mapper.toResponse(repository.save(entity));
+		selectionCache.remove(request.assetSelectionId());
+		return response;
 	}
 
 	@Transactional

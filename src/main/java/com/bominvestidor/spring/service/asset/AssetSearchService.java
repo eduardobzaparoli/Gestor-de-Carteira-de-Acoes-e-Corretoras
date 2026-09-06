@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import com.bominvestidor.spring.domain.asset.AssetCandidate;
 import com.bominvestidor.spring.domain.asset.AssetMarket;
 import com.bominvestidor.spring.domain.asset.AssetQuote;
+import com.bominvestidor.spring.domain.asset.SelectedAsset;
 import com.bominvestidor.spring.domain.asset.AssetType;
 import com.bominvestidor.spring.dto.asset.AssetSearchResponse;
 import com.bominvestidor.spring.dto.error.FieldErrorResponse;
@@ -24,12 +25,14 @@ public class AssetSearchService {
 	private final PortfolioService portfolioService;
 	private final AssetSearchStrategyResolver strategyResolver;
 	private final AssetSearchCache cache;
+	private final AssetSelectionCache selectionCache;
 
 	public AssetSearchService(PortfolioService portfolioService, AssetSearchStrategyResolver strategyResolver,
-			AssetSearchCache cache) {
+		AssetSearchCache cache, AssetSelectionCache selectionCache) {
 		this.portfolioService = portfolioService;
 		this.strategyResolver = strategyResolver;
 		this.cache = cache;
+		this.selectionCache = selectionCache;
 	}
 
 	public List<AssetSearchResponse> search(UUID ownerId, UUID portfolioId, String marketValue, String typeValue,
@@ -45,7 +48,8 @@ public class AssetSearchService {
 		for (AssetCandidate candidate : candidates) {
 			if (results.size() == MAX_RESULTS) break;
 			cache.findQuote(market, candidate.ticker()).or(() -> findAndCacheQuote(strategy, market, candidate.ticker()))
-					.ifPresent(quote -> results.add(toResponse(candidate, quote)));
+					.filter(quote -> AssetIdentityRules.hasCompatibleCurrency(market, quote.currency()))
+					.ifPresent(quote -> results.add(toResponse(ownerId, portfolioId, candidate, quote)));
 		}
 		return List.copyOf(results);
 	}
@@ -64,9 +68,10 @@ public class AssetSearchService {
 	private java.util.Optional<AssetQuote> findAndCacheQuote(AssetSearchStrategy strategy, AssetMarket market, String ticker) {
 		return strategy.findQuote(ticker).map(quote -> { cache.storeQuote(market, ticker, quote); return quote; });
 	}
-	private AssetSearchResponse toResponse(AssetCandidate candidate, AssetQuote quote) {
-		return new AssetSearchResponse(candidate.ticker(), candidate.name(), candidate.market(), candidate.assetType(),
-				quote.currency(), quote.price());
+	private AssetSearchResponse toResponse(UUID ownerId, UUID portfolioId, AssetCandidate candidate, AssetQuote quote) {
+		SelectedAsset asset = new SelectedAsset(candidate.ticker(), candidate.name(), candidate.market(), candidate.assetType(), quote.currency());
+		return new AssetSearchResponse(selectionCache.store(ownerId, portfolioId, asset), asset.ticker(), asset.name(), asset.market(), asset.assetType(),
+				asset.currency(), quote.price());
 	}
 	private AssetMarket market(String value) { return parse(value, AssetMarket.class, "market"); }
 	private AssetType type(String value) { return parse(value, AssetType.class, "assetType"); }

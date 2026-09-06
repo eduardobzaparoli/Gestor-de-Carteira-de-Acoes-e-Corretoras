@@ -39,6 +39,7 @@ import com.bominvestidor.spring.repository.brokerage.BrokerageRepository;
 import com.bominvestidor.spring.repository.portfolio.PortfolioRepository;
 import com.bominvestidor.spring.repository.user.UserRepository;
 import com.bominvestidor.spring.service.auth.AuthService;
+import com.bominvestidor.spring.service.asset.AssetSelectionCache;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -48,12 +49,13 @@ class AssetSearchIntegrationTests {
 	private static final AtomicBoolean EXCHANGE_AVAILABLE = new AtomicBoolean(true);
 	private static final AtomicBoolean HISTORICAL_EXCHANGE_AVAILABLE = new AtomicBoolean(true);
 	@Autowired MockMvc mockMvc; @Autowired AuthService authService; @Autowired UserRepository users;
-	@Autowired BrokerageRepository brokerages; @Autowired PortfolioRepository portfolios;
+	@Autowired BrokerageRepository brokerages; @Autowired PortfolioRepository portfolios; @Autowired AssetSelectionCache selections;
 
 	@Test void returnsPublicQuotedResultsAndProtectsTheRoute() throws Exception {
 		Session first = session(); UUID portfolioId = portfolio(first.user()).getId();
 		mockMvc.perform(get("/api/portfolios/{id}/assets", portfolioId).param("market", "BR").param("assetType", "STOCK").param("query", "PETR").header("Authorization", "Bearer " + first.token()))
-			.andExpect(status().isOk()).andExpect(jsonPath("$[0].ticker").value("PETR4")).andExpect(jsonPath("$[0].price").value(35.10));
+			.andExpect(status().isOk()).andExpect(jsonPath("$[0].selectionId").isNotEmpty())
+			.andExpect(jsonPath("$[0].ticker").value("PETR4")).andExpect(jsonPath("$[0].price").value(35.10));
 		mockMvc.perform(get("/api/portfolios/{id}/assets", portfolioId).param("market", "BR").param("assetType", "ETF").param("query", "BOVA").header("Authorization", "Bearer " + first.token()))
 			.andExpect(status().isOk()).andExpect(jsonPath("$[0].assetType").value("ETF"));
 		mockMvc.perform(get("/api/portfolios/{id}/assets", portfolioId).param("market", "US").param("assetType", "STOCK").param("query", "MSFT").header("Authorization", "Bearer " + first.token()))
@@ -141,8 +143,10 @@ class AssetSearchIntegrationTests {
 	}
 	private void transaction(Session session, UUID portfolioId, String ticker, String market, String currency, String quantity, String price,
 			LocalDate transactionDate) throws Exception {
-		String body = "{\"ticker\":\"%s\",\"assetName\":\"%s\",\"market\":\"%s\",\"assetType\":\"STOCK\",\"currency\":\"%s\",\"type\":\"BUY\",\"transactionDate\":\"%s\",\"quantity\":%s,\"unitPrice\":%s,\"costs\":0}"
-				.formatted(ticker, ticker, market, currency, transactionDate, quantity, price);
+		UUID selectionId = selections.store(session.user().getId(), portfolioId, new SelectedAsset(ticker, ticker,
+				AssetMarket.valueOf(market), AssetType.STOCK, currency));
+		String body = "{\"assetSelectionId\":\"%s\",\"type\":\"BUY\",\"transactionDate\":\"%s\",\"quantity\":%s,\"unitPrice\":%s,\"costs\":0}"
+				.formatted(selectionId, transactionDate, quantity, price);
 		mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/portfolios/{id}/transactions", portfolioId)
 				.header("Authorization", "Bearer " + session.token()).contentType("application/json").content(body)).andExpect(status().isCreated());
 	}

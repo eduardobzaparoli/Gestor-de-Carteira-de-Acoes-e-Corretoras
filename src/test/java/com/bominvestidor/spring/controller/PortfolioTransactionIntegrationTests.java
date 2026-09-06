@@ -47,25 +47,27 @@ import com.bominvestidor.spring.repository.user.UserRepository;
 import com.bominvestidor.spring.exception.PortfolioTransactionConflictException;
 import com.bominvestidor.spring.service.auth.AuthService;
 import com.bominvestidor.spring.service.transaction.PortfolioTransactionService;
+import com.bominvestidor.spring.service.asset.AssetSelectionCache;
+import com.bominvestidor.spring.domain.asset.SelectedAsset;
 
 @SpringBootTest @AutoConfigureMockMvc @ActiveProfiles("test") @Import(PortfolioTransactionIntegrationTests.TestClockConfiguration.class)
 class PortfolioTransactionIntegrationTests {
-	@Autowired MockMvc mockMvc; @Autowired AuthService auth; @Autowired UserRepository users; @Autowired BrokerageRepository brokerages; @Autowired PortfolioRepository portfolios; @Autowired PortfolioTransactionRepository transactions; @Autowired PortfolioTransactionService transactionService; @Autowired MutableClock clock;
+	@Autowired MockMvc mockMvc; @Autowired AuthService auth; @Autowired UserRepository users; @Autowired BrokerageRepository brokerages; @Autowired PortfolioRepository portfolios; @Autowired PortfolioTransactionRepository transactions; @Autowired PortfolioTransactionService transactionService; @Autowired AssetSelectionCache selections; @Autowired MutableClock clock;
 
 	@Test void recordsHistoryReservesFutureSalesAndPreservesPortfolioLog() throws Exception {
 		clock.set(Instant.now());
 		LocalDate today = LocalDate.now(clock); LocalDate pastDate = today.minusDays(2);
 		LocalDate firstFutureDate = today.plusDays(1); LocalDate secondFutureDate = today.plusDays(2);
 		Session session = session(); UUID portfolioId = portfolio(session.user()).getId();
-		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json").content(body("BUY", pastDate.toString(), "10")))
+		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json").content(body(session, portfolioId, "BUY", pastDate.toString(), "10")))
 			.andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("EFFECTIVE"));
-		String pending = mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json").content(body("SELL", firstFutureDate.toString(), "7")))
+		String pending = mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json").content(body(session, portfolioId, "SELL", firstFutureDate.toString(), "7")))
 			.andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("PENDING")).andReturn().getResponse().getContentAsString();
 		String pendingId = com.jayway.jsonpath.JsonPath.read(pending, "$.id");
-		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json").content(body("SELL", secondFutureDate.toString(), "4")))
+		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json").content(body(session, portfolioId, "SELL", secondFutureDate.toString(), "4")))
 			.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("INSUFFICIENT_ASSET_QUANTITY"));
 		mockMvc.perform(delete(path(portfolioId)+"/{id}", pendingId).header("Authorization", bearer(session))).andExpect(status().isNoContent());
-		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json").content(body("SELL", secondFutureDate.toString(), "10")))
+		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json").content(body(session, portfolioId, "SELL", secondFutureDate.toString(), "10")))
 			.andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("PENDING"));
 		mockMvc.perform(delete("/api/portfolios/{id}", portfolioId).header("Authorization", bearer(session)))
 			.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("PORTFOLIO_HAS_TRANSACTIONS"));
@@ -78,8 +80,8 @@ class PortfolioTransactionIntegrationTests {
 		clock.set(Instant.now());
 		String pastDate = LocalDate.now(clock).minusDays(2).toString();
 		Session first = session(); UUID portfolioId = portfolio(first.user()).getId();
-		mockMvc.perform(post(path(portfolioId)).contentType("application/json").content(body("BUY", pastDate, "1"))).andExpect(status().isUnauthorized());
-		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(first)).contentType("application/json").content(body("BUY", pastDate, "0")))
+		mockMvc.perform(post(path(portfolioId)).contentType("application/json").content(body(first, portfolioId, "BUY", pastDate, "1"))).andExpect(status().isUnauthorized());
+		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(first)).contentType("application/json").content(body(first, portfolioId, "BUY", pastDate, "0")))
 			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.fieldErrors[0].field").value("quantity"));
 		Session other = session();
 		mockMvc.perform(get(path(portfolioId)).header("Authorization", bearer(other))).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("PORTFOLIO_NOT_FOUND"));
@@ -89,11 +91,11 @@ class PortfolioTransactionIntegrationTests {
 		clock.set(Instant.now());
 		LocalDate today = LocalDate.now(clock); Session session = session(); UUID portfolioId = portfolio(session.user()).getId();
 		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json")
-			.content(body("BUY", today.minusDays(1).toString(), "10"))).andExpect(status().isCreated());
+			.content(body(session, portfolioId, "BUY", today.minusDays(1).toString(), "10"))).andExpect(status().isCreated());
 		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json")
-			.content(body("SELL", today.plusDays(2).toString(), "7"))).andExpect(status().isCreated());
+			.content(body(session, portfolioId, "SELL", today.plusDays(2).toString(), "7"))).andExpect(status().isCreated());
 		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json")
-			.content(body("SELL", today.toString(), "4"))).andExpect(status().isConflict())
+			.content(body(session, portfolioId, "SELL", today.toString(), "4"))).andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("INSUFFICIENT_ASSET_QUANTITY"));
 	}
 
@@ -101,7 +103,7 @@ class PortfolioTransactionIntegrationTests {
 		clock.set(Instant.now());
 		LocalDate today = LocalDate.now(clock); Session session = session(); UUID portfolioId = portfolio(session.user()).getId();
 		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json")
-			.content(body("BUY", today.minusDays(1).toString(), "10"))).andExpect(status().isCreated());
+			.content(body(session, portfolioId, "BUY", today.minusDays(1).toString(), "10"))).andExpect(status().isCreated());
 		Instant now = clock.instant();
 		PortfolioTransactionEntity invalidPendingSale = transactions.saveAndFlush(new PortfolioTransactionEntity(UUID.randomUUID(),
 			portfolios.getReferenceById(portfolioId), "PETR4", "Petrobras", AssetMarket.BR, AssetType.STOCK, "BRL",
@@ -117,15 +119,13 @@ class PortfolioTransactionIntegrationTests {
 		clock.set(Instant.now());
 		LocalDate today = LocalDate.now(clock); Session session = session(); UUID portfolioId = portfolio(session.user()).getId();
 		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session)).contentType("application/json")
-			.content(body("BUY", today.minusDays(1).toString(), "10"))).andExpect(status().isCreated());
-		PortfolioTransactionCreateRequest sale = new PortfolioTransactionCreateRequest("PETR4", "Petrobras", AssetMarket.BR,
-			AssetType.STOCK, "BRL", TransactionType.SELL, today, new BigDecimal("7"), new BigDecimal("35.10"), BigDecimal.ZERO);
+			.content(body(session, portfolioId, "BUY", today.minusDays(1).toString(), "10"))).andExpect(status().isCreated());
 		CountDownLatch start = new CountDownLatch(1); ExecutorService executor = Executors.newFixedThreadPool(2);
 		try {
 			List<Future<String>> outcomes = new ArrayList<>();
 			for (int index = 0; index < 2; index++) outcomes.add(executor.submit(() -> {
 				start.await(5, TimeUnit.SECONDS);
-				try { transactionService.create(session.user().getId(), portfolioId, sale); return "CREATED"; }
+				try { transactionService.create(session.user().getId(), portfolioId, new PortfolioTransactionCreateRequest(selection(session, portfolioId), TransactionType.SELL, today, new BigDecimal("7"), new BigDecimal("35.10"), BigDecimal.ZERO)); return "CREATED"; }
 				catch (PortfolioTransactionConflictException exception) { return exception.getCode(); }
 			}));
 			start.countDown();
@@ -138,9 +138,28 @@ class PortfolioTransactionIntegrationTests {
 		assertEquals(2, transactions.findAllByPortfolio_Id(portfolioId).size());
 	}
 
+	@Test void rejectsExpiredOrForeignSelectionsAndInvalidDecimalPrecision() throws Exception {
+		clock.set(Instant.now()); Session owner = session(); UUID portfolioId = portfolio(owner.user()).getId();
+		UUID selectionId = selection(owner, portfolioId); PortfolioEntity original = portfolios.findById(portfolioId).orElseThrow(); Instant now = clock.instant();
+		UUID otherPortfolioId = portfolios.saveAndFlush(new PortfolioEntity(UUID.randomUUID(), owner.user(), original.getBrokerage(), "Other portfolio", UUID.randomUUID().toString(), now, now)).getId();
+		mockMvc.perform(post(path(otherPortfolioId)).header("Authorization", bearer(owner)).contentType("application/json")
+				.content(request(selectionId, "BUY", LocalDate.now(clock).toString(), "1", "35.10")))
+			.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ASSET_SELECTION_EXPIRED"));
+		UUID expired = selection(owner, portfolioId); clock.set(clock.instant().plusSeconds(6 * 60));
+		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(owner)).contentType("application/json")
+				.content(request(expired, "BUY", LocalDate.now(clock).toString(), "1", "35.10")))
+			.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ASSET_SELECTION_EXPIRED"));
+		UUID precise = selection(owner, portfolioId);
+		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(owner)).contentType("application/json")
+				.content(request(precise, "BUY", LocalDate.now(clock).toString(), "1.123456789", "35.10")))
+			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.fieldErrors[0].field").value("quantity"));
+	}
+
 	private String path(UUID portfolioId) { return "/api/portfolios/"+portfolioId+"/transactions"; }
+	private UUID selection(Session session, UUID portfolioId) { return selections.store(session.user().getId(), portfolioId, new SelectedAsset("PETR4", "Petrobras", AssetMarket.BR, AssetType.STOCK, "BRL")); }
 	private String bearer(Session session) { return "Bearer "+session.token(); }
-	private String body(String type, String date, String quantity) { return "{\"ticker\":\"PETR4\",\"assetName\":\"Petrobras\",\"market\":\"BR\",\"assetType\":\"STOCK\",\"currency\":\"BRL\",\"type\":\""+type+"\",\"transactionDate\":\""+date+"\",\"quantity\":"+quantity+",\"unitPrice\":35.10}"; }
+	private String body(Session session, UUID portfolioId, String type, String date, String quantity) { return "{\"assetSelectionId\":\""+selection(session, portfolioId)+"\",\"type\":\""+type+"\",\"transactionDate\":\""+date+"\",\"quantity\":"+quantity+",\"unitPrice\":35.10}"; }
+	private String request(UUID selectionId, String type, String date, String quantity, String price) { return "{\"assetSelectionId\":\""+selectionId+"\",\"type\":\""+type+"\",\"transactionDate\":\""+date+"\",\"quantity\":"+quantity+",\"unitPrice\":"+price+"}"; }
 	private Session session() { String email=UUID.randomUUID()+"@example.com"; auth.register(new RegisterRequest("Investor",email,"password123")); return new Session(auth.login(new LoginRequest(email,"password123")).token(),users.findByEmail(email).orElseThrow()); }
 	private PortfolioEntity portfolio(UserEntity owner) { Instant now=clock.instant(); BrokerageEntity b=brokerages.saveAndFlush(new BrokerageEntity(UUID.randomUUID(),owner,"Broker","broker"+UUID.randomUUID(),"61384004000105","Legal",null,"ACTIVE","BROKERS","01445000","Rua","Bairro","1",null,"São Paulo","SP",now,now)); return portfolios.saveAndFlush(new PortfolioEntity(UUID.randomUUID(),owner,"unused".equals("x")?null:b,"Portfolio "+UUID.randomUUID(),UUID.randomUUID().toString(),now,now)); }
 	private record Session(String token, UserEntity user) { }
