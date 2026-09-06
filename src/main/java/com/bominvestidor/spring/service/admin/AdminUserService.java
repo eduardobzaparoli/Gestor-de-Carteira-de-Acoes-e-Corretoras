@@ -65,6 +65,7 @@ public class AdminUserService {
 
 	@Transactional
 	public AdminUserResponse update(UUID actorId, UUID userId, AdminUserUpdateRequest request) {
+		lockActiveAdministrators();
 		UserEntity user = findEntity(userId);
 		String name = normalizer.normalizeName(request.name());
 		String email = normalizer.normalizeEmail(request.email());
@@ -79,6 +80,7 @@ public class AdminUserService {
 
 	@Transactional
 	public void deactivate(UUID actorId, UUID userId) {
+		lockActiveAdministrators();
 		UserEntity user = findEntity(userId);
 		if (actorId.equals(userId)) {
 			throw new AdminUserConflictException("CANNOT_DEACTIVATE_SELF", "Administrators cannot deactivate themselves");
@@ -100,6 +102,10 @@ public class AdminUserService {
 
 	private UserEntity findEntity(UUID userId) {
 		return userRepository.findById(userId).orElseThrow(UserNotFoundException::new);
+	}
+
+	private void lockActiveAdministrators() {
+		userRepository.findAllByRoleAndStatusForUpdate(UserRole.ADMIN, UserStatus.ACTIVE);
 	}
 
 	private void assertCanKeepAdministrativeContinuity(UUID actorId, UserEntity user, UserRole requestedRole,
