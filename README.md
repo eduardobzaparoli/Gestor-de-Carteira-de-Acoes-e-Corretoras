@@ -1,6 +1,25 @@
 # Gestor-de-A-es
 Repositório criado para solução do Trabalho da matéria de Laboratório de Programação VI do curso de Sistemas de Informação da UNIFEF
 
+## Validação de release
+
+O gate H2 não usa serviços externos:
+
+```powershell
+./mvnw.cmd -Prelease-h2 test
+```
+
+O gate PostgreSQL exige um banco de teste vazio e as variáveis `DB_URL`, `DB_USERNAME` e `DB_PASSWORD`:
+
+```powershell
+$env:DB_URL = "jdbc:postgresql://localhost:5432/bom_investidor_test"
+$env:DB_USERNAME = "bom_investidor_test"
+$env:DB_PASSWORD = "senha-de-teste"
+./mvnw.cmd -Prelease-postgres test
+```
+
+O GitHub Actions executa ambos em pull requests e em pushes para `dev`. Os gates usam dublês determinísticos para integrações externas; smoke tests reais são opcionais e não fazem parte do pipeline obrigatório.
+
 ## Graphify (opcional)
 
 O projeto pode ser analisado localmente com o [Graphify](https://graphify.com/docs), que gera um grafo das relações entre arquivos, classes e métodos. A ferramenta é apenas um apoio ao desenvolvimento e não é uma dependência da aplicação.
