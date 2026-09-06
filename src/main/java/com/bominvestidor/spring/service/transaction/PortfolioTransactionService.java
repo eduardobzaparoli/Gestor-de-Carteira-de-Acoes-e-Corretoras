@@ -5,8 +5,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -32,9 +30,11 @@ public class PortfolioTransactionService {
 	private final PortfolioTransactionRepository repository;
 	private final PortfolioTransactionMapper mapper;
 	private final PortfolioTransactionReconciliationService reconciliationService;
+	private final PortfolioTransactionBalanceService balanceService;
 	private final Clock clock;
 	public PortfolioTransactionService(PortfolioService portfolioService, PortfolioTransactionRepository repository,
-			PortfolioTransactionMapper mapper, PortfolioTransactionReconciliationService reconciliationService, Clock clock) { this.portfolioService=portfolioService; this.repository=repository; this.mapper=mapper; this.reconciliationService=reconciliationService; this.clock=clock; }
+			PortfolioTransactionMapper mapper, PortfolioTransactionReconciliationService reconciliationService,
+			PortfolioTransactionBalanceService balanceService, Clock clock) { this.portfolioService=portfolioService; this.repository=repository; this.mapper=mapper; this.reconciliationService=reconciliationService; this.balanceService=balanceService; this.clock=clock; }
 
 	@Transactional
 	public PortfolioTransactionResponse create(UUID ownerId, UUID portfolioId, PortfolioTransactionCreateRequest request) {
@@ -45,10 +45,8 @@ public class PortfolioTransactionService {
 		PortfolioTransactionEntity entity = new PortfolioTransactionEntity(UUID.randomUUID(), portfolio, request.ticker().trim().toUpperCase(Locale.ROOT),
 				request.assetName().trim(), request.market(), request.assetType(), request.currency().trim().toUpperCase(Locale.ROOT), request.type(),
 				status, request.transactionDate(), request.quantity(), request.unitPrice(), request.costs() == null ? BigDecimal.ZERO : request.costs(), now, now);
-		if (request.type() == TransactionType.SELL && status == TransactionStatus.PENDING
-				&& available(portfolioId, request.ticker(), request.market()).compareTo(request.quantity()) < 0)
-			throw conflict("INSUFFICIENT_ASSET_QUANTITY", "Asset quantity is insufficient for this sale");
-		if (status == TransactionStatus.EFFECTIVE) validateChronologicalQuantity(portfolioId, entity);
+		if (request.type() == TransactionType.SELL) balanceService.validateSale(
+				repository.findAllByPortfolio_IdOrderByTransactionDateAscCreatedAtAsc(portfolioId), entity);
 		return mapper.toResponse(repository.save(entity));
 	}
 
@@ -69,26 +67,8 @@ public class PortfolioTransactionService {
 		transaction.cancel(clock.instant());
 	}
 
-	private void validateChronologicalQuantity(UUID portfolioId, PortfolioTransactionEntity candidate) {
-		List<PortfolioTransactionEntity> transactions = new ArrayList<>(repository.findAllByPortfolio_IdOrderByTransactionDateAscCreatedAtAsc(portfolioId));
-		transactions.add(candidate);
-		BigDecimal quantity = transactions.stream().filter(item -> item.getStatus() == TransactionStatus.EFFECTIVE)
-			.filter(item -> item.getTicker().equalsIgnoreCase(candidate.getTicker()) && item.getMarket() == candidate.getMarket())
-			.sorted(Comparator.comparing(PortfolioTransactionEntity::getTransactionDate).thenComparing(PortfolioTransactionEntity::getCreatedAt))
-			.map(item -> item.getType() == TransactionType.BUY ? item.getQuantity() : item.getQuantity().negate())
-			.reduce(BigDecimal.ZERO, (balance, change) -> {
-				BigDecimal result = balance.add(change);
-				if (result.compareTo(BigDecimal.ZERO) < 0) throw conflict("INSUFFICIENT_ASSET_QUANTITY", "Asset quantity is insufficient for this sale");
-				return result;
-			});
+	private PortfolioTransactionConflictException conflict(String code, String message) {
+		return new PortfolioTransactionConflictException(code, message);
 	}
 
-	private BigDecimal available(UUID portfolioId, String ticker, com.bominvestidor.spring.domain.asset.AssetMarket market) {
-		return repository.findAllByPortfolio_Id(portfolioId).stream()
-			.filter(item -> item.getTicker().equalsIgnoreCase(ticker.trim()) && item.getMarket() == market)
-			.filter(item -> item.getStatus() == TransactionStatus.EFFECTIVE || (item.getStatus() == TransactionStatus.PENDING && item.getType() == TransactionType.SELL))
-			.map(item -> item.getType() == TransactionType.BUY ? item.getQuantity() : item.getQuantity().negate())
-			.reduce(BigDecimal.ZERO, BigDecimal::add);
-	}
-	private PortfolioTransactionConflictException conflict(String code, String message) { return new PortfolioTransactionConflictException(code, message); }
 }
