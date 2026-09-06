@@ -1,11 +1,14 @@
 package com.bominvestidor.spring.security;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -49,6 +52,8 @@ public class ActiveAccountFilter extends OncePerRequestFilter {
 					reject(response, "ACCOUNT_INACTIVE", "Account is inactive", request);
 					return;
 				}
+				SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt,
+						List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))));
 			}
 			catch (IllegalArgumentException exception) {
 				reject(response, "UNAUTHORIZED", "Authentication is required or the token is invalid", request);

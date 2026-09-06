@@ -122,11 +122,50 @@ class AdminUserIntegrationTests {
 				.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("LAST_ACTIVE_ADMIN"));
 	}
 
+	@Test
+	void demotedAdministratorLosesAdministrativeAccessWithPreviouslyIssuedToken() throws Exception {
+		String actorToken = administratorToken("actor@example.com");
+		UserEntity administrator = activeUser("Administrator", "administrator@example.com", UserRole.ADMIN);
+		String administratorToken = authService.login(new LoginRequest("administrator@example.com", "password123")).token();
+
+		Map<String, Object> demote = Map.of("name", "Administrator", "email", "administrator@example.com",
+				"password", "password123", "role", "INVESTOR");
+		mockMvc.perform(put("/api/admin/users/{id}", administrator.getId()).header("Authorization", bearer(actorToken))
+				.contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(demote)))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.role").value("INVESTOR"));
+
+		mockMvc.perform(get("/api/admin/users").header("Authorization", bearer(administratorToken)))
+				.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
+		mockMvc.perform(get("/api/auth/me").header("Authorization", bearer(administratorToken)))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.role").value("INVESTOR"));
+	}
+
+	@Test
+	void promotedInvestorGainsAdministrativeAccessWithPreviouslyIssuedToken() throws Exception {
+		String actorToken = administratorToken("actor@example.com");
+		authService.register(new RegisterRequest("Investor", "investor@example.com", "password123"));
+		UserEntity investor = users.findByEmail("investor@example.com").orElseThrow();
+		String investorToken = authService.login(new LoginRequest("investor@example.com", "password123")).token();
+
+		Map<String, Object> promote = Map.of("name", "Investor", "email", "investor@example.com",
+				"password", "password123", "role", "ADMIN");
+		mockMvc.perform(put("/api/admin/users/{id}", investor.getId()).header("Authorization", bearer(actorToken))
+				.contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(promote)))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.role").value("ADMIN"));
+
+		mockMvc.perform(get("/api/admin/users").header("Authorization", bearer(investorToken)))
+				.andExpect(status().isOk());
+	}
+
 	private String administratorToken(String email) {
-		Instant now = Instant.now();
-		users.saveAndFlush(new UserEntity(UUID.randomUUID(), "Admin", email, passwordEncoder.encode("password123"),
-				UserRole.ADMIN, UserStatus.ACTIVE, now, now));
+		activeUser("Admin", email, UserRole.ADMIN);
 		return authService.login(new LoginRequest(email, "password123")).token();
+	}
+
+	private UserEntity activeUser(String name, String email, UserRole role) {
+		Instant now = Instant.now();
+		return users.saveAndFlush(new UserEntity(UUID.randomUUID(), name, email, passwordEncoder.encode("password123"),
+				role, UserStatus.ACTIVE, now, now));
 	}
 
 	private String bearer(String token) {
