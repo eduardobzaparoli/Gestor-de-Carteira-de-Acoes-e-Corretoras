@@ -137,7 +137,11 @@ O sistema MUST persistir usuários e aplicar a restrição de unicidade do e-mai
 - **THEN** a estrutura necessária para usuários é criada automaticamente a partir do mapeamento persistente e a aplicação fica pronta para cadastro e login
 
 ### Requirement: Persistência compatível do estado de conta
-O sistema SHALL manter o estado de conta persistido de forma compatível com H2 e PostgreSQL. Em produção, a evolução de `users.status` MUST ser aplicada por uma migração Flyway versionada, que preserve os usuários existentes como ativos e seja registrada no histórico do banco.
+O sistema SHALL manter o estado de conta persistido de forma compatível com H2 e PostgreSQL. No PostgreSQL, o esquema de autenticação SHALL ser criado e evoluído por migrações Flyway versionadas. A evolução de `users.status` MUST preservar os usuários existentes como ativos e ser registrada no histórico do banco.
+
+#### Scenario: Banco PostgreSQL vazio recebe o esquema de autenticação
+- **WHEN** a aplicação inicia em produção ou no perfil de integração PostgreSQL contra um banco vazio
+- **THEN** o Flyway cria a tabela de usuários com a restrição de unicidade do e-mail e a coluna `status`, e a aplicação fica pronta para cadastro e login
 
 #### Scenario: Banco PostgreSQL existente recebe a migração
 - **WHEN** uma versão da aplicação com esta mudança inicia em produção ou no perfil de integração PostgreSQL contra um banco existente que ainda não possui histórico Flyway
