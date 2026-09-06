@@ -42,8 +42,9 @@ class AssetSearchServiceTests {
 	void setUp() {
 		when(strategy.market()).thenReturn(AssetMarket.BR);
 		BrokerageIntegrationProperties properties = new BrokerageIntegrationProperties();
-		AssetSearchCache cache = new AssetSearchCache(Clock.fixed(Instant.parse("2026-08-28T12:00:00Z"), ZoneOffset.UTC), properties);
-		service = new AssetSearchService(portfolioService, new AssetSearchStrategyResolver(List.of(strategy)), cache);
+		Clock clock = Clock.fixed(Instant.parse("2026-08-28T12:00:00Z"), ZoneOffset.UTC);
+		AssetSearchCache cache = new AssetSearchCache(clock, properties);
+		service = new AssetSearchService(portfolioService, new AssetSearchStrategyResolver(List.of(strategy)), cache, new AssetSelectionCache(clock, properties));
 	}
 
 	@Test
@@ -59,7 +60,7 @@ class AssetSearchServiceTests {
 
 		assertEquals(1, first.size());
 		assertEquals("PETR4", first.get(0).ticker());
-		assertEquals(first, second);
+		assertEquals(first.get(0).ticker(), second.get(0).ticker());
 		verify(portfolioService, times(2)).requireOwnedPortfolio(ownerId, portfolioId);
 		verify(strategy, times(1)).findCandidates(AssetType.STOCK, "PET");
 		verify(strategy, times(1)).findQuote("PETR4");

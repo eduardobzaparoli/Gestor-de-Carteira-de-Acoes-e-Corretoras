@@ -52,6 +52,8 @@ import com.bominvestidor.spring.integration.income.IncomeEventProviderStrategyRe
 import com.bominvestidor.spring.integration.asset.AssetSearchStrategy;
 import com.bominvestidor.spring.integration.asset.AssetSearchStrategyResolver;
 import com.bominvestidor.spring.exception.AssetProviderUnavailableException;
+import com.bominvestidor.spring.service.asset.AssetSelectionCache;
+import com.bominvestidor.spring.domain.asset.SelectedAsset;
 
 @SpringBootTest @AutoConfigureMockMvc @ActiveProfiles("test") @Import(PortfolioIncomeEventIntegrationTests.TestClockConfiguration.class)
 class PortfolioIncomeEventIntegrationTests {
@@ -59,6 +61,7 @@ class PortfolioIncomeEventIntegrationTests {
 	@Autowired MockMvc mockMvc; @Autowired AuthService auth; @Autowired UserRepository users; @Autowired BrokerageRepository brokerages;
 	@Autowired PortfolioRepository portfolios; @Autowired PortfolioPositionService positions; @Autowired MutableClock clock;
 	@Autowired IncomeEventCandidateCache candidateCache;
+	@Autowired AssetSelectionCache selections;
 
 	@Test
 	void recordsManualIncomePreservesPositionsAndHandlesPendingLifecycle() throws Exception {
@@ -130,6 +133,14 @@ class PortfolioIncomeEventIntegrationTests {
 			.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("INCOME_EVENT_CANNOT_BE_CANCELLED"));
 	}
 
+	@Test
+	void rejectsManualIncomeForAssetNeverAcquired() throws Exception {
+		clock.set(Instant.now()); Session session = session(); UUID portfolioId = portfolio(session.user()).getId();
+		mockMvc.perform(post(path(portfolioId)+"/manual").header("Authorization", bearer(session)).contentType("application/json")
+				.content(manual(LocalDate.now(clock).toString(), "1")))
+			.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ASSET_NOT_ACQUIRED"));
+	}
+
 	private UUID candidate(Session session, UUID portfolioId) {
 		LocalDate today = LocalDate.now(clock);
 		return candidateCache.store(session.user().getId(), portfolioId, new IncomeEventCandidate("brapi|PETR4|DIVIDEND|"+today.minusDays(1), "PETR4", "Petrobras", AssetMarket.BR,
@@ -138,9 +149,9 @@ class PortfolioIncomeEventIntegrationTests {
 	}
 
 	private void buy(Session session, UUID portfolioId, String quantity) throws Exception { mockMvc.perform(post("/api/portfolios/{id}/transactions", portfolioId).header("Authorization", bearer(session)).contentType("application/json")
-			.content("{\"ticker\":\"PETR4\",\"assetName\":\"Petrobras\",\"market\":\"BR\",\"assetType\":\"STOCK\",\"currency\":\"BRL\",\"type\":\"BUY\",\"transactionDate\":\""+LocalDate.now(clock).minusDays(10)+"\",\"quantity\":"+quantity+",\"unitPrice\":35.10}")).andExpect(status().isCreated()); }
+			.content("{\"assetSelectionId\":\""+selections.store(session.user().getId(), portfolioId, new SelectedAsset("PETR4", "Petrobras", AssetMarket.BR, AssetType.STOCK, "BRL"))+"\",\"type\":\"BUY\",\"transactionDate\":\""+LocalDate.now(clock).minusDays(10)+"\",\"quantity\":"+quantity+",\"unitPrice\":35.10}")).andExpect(status().isCreated()); }
 	private String path(UUID portfolioId) { return "/api/portfolios/"+portfolioId+"/income-events"; }
-	private String manual(String paymentDate, String amount) { return "{\"ticker\":\"PETR4\",\"assetName\":\"Petrobras\",\"market\":\"BR\",\"assetType\":\"STOCK\",\"currency\":\"BRL\",\"type\":\"DIVIDEND\",\"paymentDate\":\""+paymentDate+"\",\"receivedAmount\":"+amount+"}"; }
+	private String manual(String paymentDate, String amount) { return "{\"ticker\":\"PETR4\",\"type\":\"DIVIDEND\",\"paymentDate\":\""+paymentDate+"\",\"receivedAmount\":"+amount+"}"; }
 	private String bearer(Session session) { return "Bearer "+session.token(); }
 	private Session session() { String email=UUID.randomUUID()+"@example.com"; auth.register(new RegisterRequest("Investor",email,"password123")); return new Session(auth.login(new LoginRequest(email,"password123")).token(),users.findByEmail(email).orElseThrow()); }
 	private PortfolioEntity portfolio(UserEntity owner) { Instant now=clock.instant(); BrokerageEntity brokerage=brokerages.saveAndFlush(new BrokerageEntity(UUID.randomUUID(),owner,"Broker","broker"+UUID.randomUUID(),"61384004000105","Legal",null,"ACTIVE","BROKERS","01445000","Rua","Bairro","1",null,"São Paulo","SP",now,now)); return portfolios.saveAndFlush(new PortfolioEntity(UUID.randomUUID(),owner,brokerage,"Portfolio "+UUID.randomUUID(),UUID.randomUUID().toString(),now,now)); }

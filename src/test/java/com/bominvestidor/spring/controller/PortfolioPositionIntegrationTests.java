@@ -37,6 +37,10 @@ import com.bominvestidor.spring.repository.brokerage.BrokerageRepository;
 import com.bominvestidor.spring.repository.portfolio.PortfolioRepository;
 import com.bominvestidor.spring.repository.user.UserRepository;
 import com.bominvestidor.spring.service.auth.AuthService;
+import com.bominvestidor.spring.service.asset.AssetSelectionCache;
+import com.bominvestidor.spring.domain.asset.AssetMarket;
+import com.bominvestidor.spring.domain.asset.AssetType;
+import com.bominvestidor.spring.domain.asset.SelectedAsset;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -49,6 +53,7 @@ class PortfolioPositionIntegrationTests {
 	@Autowired BrokerageRepository brokerages;
 	@Autowired PortfolioRepository portfolios;
 	@Autowired MutableClock clock;
+	@Autowired AssetSelectionCache selections;
 
 	@Test
 	void calculatesWeightedAveragePartialSalesFullSettlementAndReopening() throws Exception {
@@ -131,7 +136,15 @@ class PortfolioPositionIntegrationTests {
 	}
 
 	private org.springframework.test.web.servlet.ResultActions post(Session session, UUID portfolioId, String body) throws Exception {
-		return mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/portfolios/{portfolioId}/transactions", portfolioId).header("Authorization", bearer(session)).contentType("application/json").content(body));
+		String ticker = com.jayway.jsonpath.JsonPath.read(body, "$.ticker");
+		String name = com.jayway.jsonpath.JsonPath.read(body, "$.assetName");
+		String market = com.jayway.jsonpath.JsonPath.read(body, "$.market");
+		String type = com.jayway.jsonpath.JsonPath.read(body, "$.assetType");
+		String currency = com.jayway.jsonpath.JsonPath.read(body, "$.currency");
+		UUID selectionId = selections.store(session.user().getId(), portfolioId, new SelectedAsset(ticker, name, AssetMarket.valueOf(market), AssetType.valueOf(type), currency));
+		String request = "{\"assetSelectionId\":\"%s\",\"type\":\"%s\",\"transactionDate\":\"%s\",\"quantity\":%s,\"unitPrice\":%s,\"costs\":%s}"
+				.formatted(selectionId, com.jayway.jsonpath.JsonPath.read(body, "$.type"), com.jayway.jsonpath.JsonPath.read(body, "$.transactionDate"), com.jayway.jsonpath.JsonPath.read(body, "$.quantity"), com.jayway.jsonpath.JsonPath.read(body, "$.unitPrice"), com.jayway.jsonpath.JsonPath.read(body, "$.costs"));
+		return mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/portfolios/{portfolioId}/transactions", portfolioId).header("Authorization", bearer(session)).contentType("application/json").content(request));
 	}
 	private String transaction(String ticker, String name, String market, String type, String currency, String transactionType,
 			String date, String quantity, String price, String costs) {

@@ -51,6 +51,7 @@ import com.bominvestidor.spring.repository.portfolio.PortfolioRepository;
 import com.bominvestidor.spring.repository.user.UserRepository;
 import com.bominvestidor.spring.service.auth.AuthService;
 import com.bominvestidor.spring.service.asset.AssetSearchService;
+import com.bominvestidor.spring.service.asset.AssetSelectionCache;
 import com.bominvestidor.spring.service.portfolio.PortfolioService;
 import com.bominvestidor.spring.service.position.PortfolioPositionService;
 import com.bominvestidor.spring.service.valuation.PortfolioMarketValuationService;
@@ -74,6 +75,7 @@ class PostgresPortfolioIntegrationTests {
 	@Autowired private BrokerageRepository brokerageRepository;
 	@Autowired private UserRepository userRepository;
 	@Autowired private AssetSearchService assetSearchService;
+	@Autowired private AssetSelectionCache assetSelections;
 	@Autowired private JdbcTemplate jdbcTemplate;
 	@Autowired private PortfolioTransactionService transactionService;
 	@Autowired private PortfolioPositionService positionService;
@@ -109,8 +111,7 @@ class PostgresPortfolioIntegrationTests {
 			assertEquals(assetTablesBefore, assetPersistenceTables());
 			assertEquals(persistedRowsBefore, persistedRows());
 
-			transactionService.create(userId, portfolioId, new PortfolioTransactionCreateRequest("PETR4", "Petrobras PN",
-					AssetMarket.BR, AssetType.STOCK, "BRL", TransactionType.BUY, LocalDate.now().minusDays(1), new BigDecimal("2"),
+			transactionService.create(userId, portfolioId, new PortfolioTransactionCreateRequest(assets.get(0).selectionId(), TransactionType.BUY, LocalDate.now().minusDays(1), new BigDecimal("2"),
 					new BigDecimal("35.10"), null));
 			assertEquals(1, jdbcTemplate.queryForObject(
 					"select count(*) from portfolio_transactions where portfolio_id = ?", Integer.class, portfolioId));
@@ -127,10 +128,10 @@ class PostgresPortfolioIntegrationTests {
 			assertEquals(List.of(), evolutionPersistenceTables());
 
 			var effectiveIncome = incomeEventService.createManual(userId, portfolioId, new ManualIncomeEventCreateRequest(
-					"PETR4", "Petrobras PN", AssetMarket.BR, AssetType.STOCK, "BRL", IncomeEventType.DIVIDEND,
+					"PETR4", IncomeEventType.DIVIDEND,
 					LocalDate.now(), new BigDecimal("7.50"), null, null, null, "PostgreSQL test"));
 			var pendingIncome = incomeEventService.createManual(userId, portfolioId, new ManualIncomeEventCreateRequest(
-					"PETR4", "Petrobras PN", AssetMarket.BR, AssetType.STOCK, "BRL", IncomeEventType.DISTRIBUTION,
+					"PETR4", IncomeEventType.DISTRIBUTION,
 					LocalDate.now().plusDays(5), new BigDecimal("3.00"), null, null, null, null));
 			assertEquals(IncomeEventStatus.EFFECTIVE, effectiveIncome.status());
 			assertEquals(IncomeEventStatus.PENDING, pendingIncome.status());
@@ -138,7 +139,7 @@ class PostgresPortfolioIntegrationTests {
 			assertEquals(pendingIncome.id(), incomeEventService.findAll(userId, portfolioId).get(0).id());
 			assertEquals(0, new BigDecimal("7.50").compareTo(incomeEventService.summary(userId, portfolioId).consolidatedReceivedAmount()));
 			assertThrows(PortfolioIncomeEventConflictException.class, () -> incomeEventService.createManual(userId, createdPortfolioId,
-					new ManualIncomeEventCreateRequest("PETR4", "Petrobras PN", AssetMarket.BR, AssetType.STOCK, "BRL", IncomeEventType.DIVIDEND,
+					new ManualIncomeEventCreateRequest("PETR4", IncomeEventType.DIVIDEND,
 							LocalDate.now(), new BigDecimal("7.50"), null, null, null, "duplicate")));
 			incomeEventService.cancel(userId, portfolioId, pendingIncome.id());
 			assertEquals(IncomeEventStatus.CANCELLED, incomeEventService.findAll(userId, portfolioId).get(0).status());
