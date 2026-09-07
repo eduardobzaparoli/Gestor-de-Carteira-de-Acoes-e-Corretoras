@@ -4,7 +4,21 @@ API REST em Java 17 e Spring Boot para gestão privada de corretoras, carteiras,
 
 ## Início rápido
 
-Defina um `JWT_SECRET` com pelo menos 32 bytes e execute `./mvnw.cmd spring-boot:run` no Windows. O perfil padrão usa H2 e atende em `http://localhost:8080`.
+O perfil padrão `dev` usa PostgreSQL. Crie seu arquivo local de referência a partir do modelo versionado:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Substitua em `.env` os valores fictícios de `DB_PASSWORD` e `JWT_SECRET`. O Spring Boot não lê esse arquivo automaticamente: carregue-o pela configuração de execução do VS Code, informe os mesmos pares no IntelliJ IDEA ou exporte-os no terminal, conforme o [guia de configuração](docs/configuration.md).
+
+Com as variáveis disponíveis no processo, execute no Windows:
+
+```powershell
+.\mvnw.cmd spring-boot:run
+```
+
+Para uma execução local explícita com H2, defina `SPRING_PROFILES_ACTIVE=h2` e um `JWT_SECRET` com pelo menos 32 bytes. A API atende em `http://localhost:8080`.
 
 - OpenAPI: `http://localhost:8080/v3/api-docs`
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
