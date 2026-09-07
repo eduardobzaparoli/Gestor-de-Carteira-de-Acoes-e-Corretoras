@@ -27,8 +27,13 @@ import com.bominvestidor.spring.domain.user.UserStatus;
 import com.bominvestidor.spring.dto.auth.LoginRequest;
 import com.bominvestidor.spring.dto.auth.RegisterRequest;
 import com.bominvestidor.spring.entity.user.UserEntity;
+import com.bominvestidor.spring.repository.brokerage.BrokerageRepository;
+import com.bominvestidor.spring.repository.income.PortfolioIncomeEventRepository;
+import com.bominvestidor.spring.repository.portfolio.PortfolioRepository;
+import com.bominvestidor.spring.repository.transaction.PortfolioTransactionRepository;
 import com.bominvestidor.spring.repository.user.UserRepository;
 import com.bominvestidor.spring.service.auth.AuthService;
+import com.bominvestidor.spring.support.IntegrationTestDataCleaner;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -40,13 +45,17 @@ class AdminUserIntegrationTests {
 
 	@Autowired private MockMvc mockMvc;
 	@Autowired private ObjectMapper objectMapper;
+	@Autowired private PortfolioIncomeEventRepository incomeEvents;
+	@Autowired private PortfolioTransactionRepository transactions;
+	@Autowired private PortfolioRepository portfolios;
+	@Autowired private BrokerageRepository brokerages;
 	@Autowired private UserRepository users;
 	@Autowired private AuthService authService;
 	@Autowired private PasswordEncoder passwordEncoder;
 
 	@BeforeEach
-	void clearUsers() {
-		users.deleteAll();
+	void clearData() {
+		new IntegrationTestDataCleaner(incomeEvents, transactions, portfolios, brokerages, users).clear();
 	}
 
 	@Test
