@@ -1,5 +1,16 @@
-# Gestor-de-A-es
-Repositório criado para solução do Trabalho da matéria de Laboratório de Programação VI do curso de Sistemas de Informação da UNIFEF
+# Bom Investidor
+
+API REST em Java 17 e Spring Boot para gestão privada de corretoras, carteiras, lançamentos, posições, valorização, evolução patrimonial e proventos.
+
+## Início rápido
+
+Defina um `JWT_SECRET` com pelo menos 32 bytes e execute `./mvnw.cmd spring-boot:run` no Windows. O perfil padrão usa H2 e atende em `http://localhost:8080`.
+
+- OpenAPI: `http://localhost:8080/v3/api-docs`
+- Swagger UI: `http://localhost:8080/swagger-ui.html`
+- Health: `http://localhost:8080/actuator/health`
+
+Consulte [configuração](docs/configuration.md), [guia da API](docs/api-guide.md) e [operação](docs/operations.md).
 
 ## Validação de release
 
