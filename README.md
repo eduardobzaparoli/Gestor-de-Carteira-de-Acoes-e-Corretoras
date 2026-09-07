@@ -24,7 +24,7 @@ Para uma execução local explícita com H2, defina `SPRING_PROFILES_ACTIVE=h2` 
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
 - Health: `http://localhost:8080/actuator/health`
 
-Consulte [configuração](docs/configuration.md), [guia da API](docs/api-guide.md) e [operação](docs/operations.md).
+Consulte [configuração](docs/configuration.md), [versionamento do banco](docs/database-migrations.md), [guia da API](docs/api-guide.md) e [operação](docs/operations.md).
 
 ## Validação de release
 

@@ -12,6 +12,8 @@ A aplicação usa Java 17 e perfis Spring. `dev` é o perfil padrão com Postgre
 | `postgres` | PostgreSQL | Testes de integração e validação de migrações |
 | `prod` | PostgreSQL | Produção, sem padrões para a conexão |
 
+Todos os perfis habilitam o Flyway, usam as migrations compartilhadas em `classpath:db/migration` e configuram o Hibernate somente para validar o esquema. Apenas os perfis PostgreSQL aceitam a baseline automática necessária para bancos legados. Veja o [guia de versionamento do banco](database-migrations.md).
+
 ## Variáveis essenciais
 
 | Variável | Perfis | Obrigatória | Padrão/finalidade |

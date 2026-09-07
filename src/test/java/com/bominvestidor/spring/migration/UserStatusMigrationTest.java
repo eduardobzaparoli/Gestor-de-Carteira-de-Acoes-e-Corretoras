@@ -10,6 +10,7 @@ import java.sql.Statement;
 import java.util.UUID;
 
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.output.MigrateResult;
 import org.junit.jupiter.api.Test;
 
 class UserStatusMigrationTest {
@@ -18,7 +19,8 @@ class UserStatusMigrationTest {
     void createsTheCompleteSchemaInAnEmptyDatabase() throws Exception {
         String databaseUrl = databaseUrl("empty-schema");
 
-        migrate(databaseUrl);
+        MigrateResult firstMigration = migrate(databaseUrl);
+        assertEquals(1, firstMigration.migrationsExecuted);
 
         try (Connection connection = DriverManager.getConnection(databaseUrl, "sa", "");
                 Statement statement = connection.createStatement()) {
@@ -33,6 +35,14 @@ class UserStatusMigrationTest {
                     SELECT COUNT(*)
                     FROM information_schema.columns
                     WHERE table_schema = 'PUBLIC' AND table_name = 'USERS' AND column_name = 'STATUS'
+                    """));
+            assertEquals(1, queryCount(statement, """
+                    SELECT COUNT(*)
+                    FROM "flyway_schema_history"
+                    WHERE "version" = '1'
+                      AND "description" = 'initial schema'
+                      AND "success" = TRUE
+                      AND "checksum" IS NOT NULL
                     """));
 
             statement.execute("""
@@ -54,6 +64,19 @@ class UserStatusMigrationTest {
                             CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     """));
         }
+
+        MigrateResult secondMigration = migrate(databaseUrl);
+        assertEquals(0, secondMigration.migrationsExecuted);
+
+        try (Connection connection = DriverManager.getConnection(databaseUrl, "sa", "");
+                Statement statement = connection.createStatement()) {
+            assertEquals(1, queryCount(statement, "SELECT COUNT(*) FROM users"));
+            assertEquals(2, queryCount(statement, "SELECT COUNT(*) FROM \"flyway_schema_history\""));
+            assertEquals(1, queryCount(statement, """
+                    SELECT COUNT(*) FROM "flyway_schema_history"
+                    WHERE "type" = 'TABLE' AND "success" = TRUE
+                    """));
+        }
     }
 
     @Test
@@ -66,8 +89,10 @@ class UserStatusMigrationTest {
             statement.execute("INSERT INTO users (id, email) VALUES (RANDOM_UUID(), 'existing@example.com')");
         }
 
-        migrate(databaseUrl);
-        migrate(databaseUrl);
+        MigrateResult firstMigration = migrate(databaseUrl);
+        MigrateResult secondMigration = migrate(databaseUrl);
+        assertEquals(1, firstMigration.migrationsExecuted);
+        assertEquals(0, secondMigration.migrationsExecuted);
 
         try (Connection connection = DriverManager.getConnection(databaseUrl, "sa", "");
                 Statement statement = connection.createStatement();
@@ -75,14 +100,27 @@ class UserStatusMigrationTest {
             resultSet.next();
             assertEquals("ACTIVE", resultSet.getString("status"));
         }
+
+        try (Connection connection = DriverManager.getConnection(databaseUrl, "sa", "");
+                Statement statement = connection.createStatement()) {
+            assertEquals(1, queryCount(statement, """
+                    SELECT COUNT(*) FROM "flyway_schema_history"
+                    WHERE "type" = 'BASELINE' AND "version" = '0' AND "success" = TRUE
+                    """));
+            assertEquals(1, queryCount(statement, """
+                    SELECT COUNT(*) FROM "flyway_schema_history"
+                    WHERE "version" = '1' AND "description" = 'add user status'
+                      AND "success" = TRUE AND "checksum" IS NOT NULL
+                    """));
+        }
     }
 
     private String databaseUrl(String name) {
         return "jdbc:h2:mem:" + name + "-" + UUID.randomUUID() + ";MODE=PostgreSQL;DB_CLOSE_DELAY=-1";
     }
 
-    private void migrate(String databaseUrl) {
-        Flyway.configure()
+    private MigrateResult migrate(String databaseUrl) {
+        return Flyway.configure()
                 .dataSource(databaseUrl, "sa", "")
                 .baselineOnMigrate(true)
                 .baselineVersion("0")
