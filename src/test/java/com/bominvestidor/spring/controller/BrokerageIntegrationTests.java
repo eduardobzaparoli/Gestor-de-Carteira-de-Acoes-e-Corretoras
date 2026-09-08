@@ -2,6 +2,7 @@ package com.bominvestidor.spring.controller;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -93,6 +94,29 @@ class BrokerageIntegrationTests {
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
 				.andExpect(jsonPath("$.fieldErrors[?(@.field == 'cep')]").exists());
+	}
+
+	@Test
+	void providesCompanyLookupAndDeletesUnlinkedBrokerage() throws Exception {
+		String token = registerAndLogin();
+		mockMvc.perform(get("/api/brokerages/cnpj").param("cnpj", "04.252.011/0001-10")
+				.header("Authorization", "Bearer " + token))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.legalName").value("Razão Social"));
+
+		String body = """
+				{"nickname":"Temporária","cnpj":"04.252.011/0001-10","cep":"04547-000",
+				"street":"Rua manual","neighborhood":"Bairro manual","number":"42"}
+				""";
+		String created = mockMvc.perform(post("/api/brokerages").header("Authorization", "Bearer " + token)
+				.contentType(MediaType.APPLICATION_JSON).content(body))
+				.andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+		String id = com.jayway.jsonpath.JsonPath.read(created, "$.id");
+
+		mockMvc.perform(delete("/api/brokerages/{id}", id).header("Authorization", "Bearer " + token))
+				.andExpect(status().isNoContent());
+		mockMvc.perform(get("/api/brokerages").header("Authorization", "Bearer " + token))
+				.andExpect(status().isOk()).andExpect(jsonPath("$").isEmpty());
 	}
 
 	private String registerAndLogin() {

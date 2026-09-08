@@ -155,11 +155,36 @@ class PortfolioTransactionIntegrationTests {
 			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.fieldErrors[0].field").value("quantity"));
 	}
 
+	@Test void editsOnlyPendingTransactionsAndRevalidatesTheirData() throws Exception {
+		clock.set(Instant.now());
+		LocalDate today = LocalDate.now(clock);
+		Session session = session(); UUID portfolioId = portfolio(session.user()).getId();
+		String pending = mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session))
+				.contentType("application/json").content(body(session, portfolioId, "BUY", today.plusDays(2).toString(), "5")))
+				.andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+		String pendingId = com.jayway.jsonpath.JsonPath.read(pending, "$.id");
+
+		mockMvc.perform(put(path(portfolioId)+"/{id}", pendingId).header("Authorization", bearer(session))
+				.contentType("application/json").content(updateBody("BUY", today.plusDays(3).toString(), "8", "42.30", "1.50")))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PENDING"))
+				.andExpect(jsonPath("$.quantity").value(8)).andExpect(jsonPath("$.unitPrice").value(42.3))
+				.andExpect(jsonPath("$.costs").value(1.5));
+
+		String effective = mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(session))
+				.contentType("application/json").content(body(session, portfolioId, "BUY", today.toString(), "1")))
+				.andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+		String effectiveId = com.jayway.jsonpath.JsonPath.read(effective, "$.id");
+		mockMvc.perform(put(path(portfolioId)+"/{id}", effectiveId).header("Authorization", bearer(session))
+				.contentType("application/json").content(updateBody("BUY", today.plusDays(2).toString(), "2", "40", "0")))
+				.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("TRANSACTION_CANNOT_BE_EDITED"));
+	}
+
 	private String path(UUID portfolioId) { return "/api/portfolios/"+portfolioId+"/transactions"; }
 	private UUID selection(Session session, UUID portfolioId) { return selections.store(session.user().getId(), portfolioId, new SelectedAsset("PETR4", "Petrobras", AssetMarket.BR, AssetType.STOCK, "BRL")); }
 	private String bearer(Session session) { return "Bearer "+session.token(); }
 	private String body(Session session, UUID portfolioId, String type, String date, String quantity) { return "{\"assetSelectionId\":\""+selection(session, portfolioId)+"\",\"type\":\""+type+"\",\"transactionDate\":\""+date+"\",\"quantity\":"+quantity+",\"unitPrice\":35.10}"; }
 	private String request(UUID selectionId, String type, String date, String quantity, String price) { return "{\"assetSelectionId\":\""+selectionId+"\",\"type\":\""+type+"\",\"transactionDate\":\""+date+"\",\"quantity\":"+quantity+",\"unitPrice\":"+price+"}"; }
+	private String updateBody(String type, String date, String quantity, String price, String costs) { return "{\"type\":\""+type+"\",\"transactionDate\":\""+date+"\",\"quantity\":"+quantity+",\"unitPrice\":"+price+",\"costs\":"+costs+"}"; }
 	private Session session() { String email=UUID.randomUUID()+"@example.com"; auth.register(new RegisterRequest("Investor",email,"password123")); return new Session(auth.login(new LoginRequest(email,"password123")).token(),users.findByEmail(email).orElseThrow()); }
 	private PortfolioEntity portfolio(UserEntity owner) { Instant now=clock.instant(); BrokerageEntity b=brokerages.saveAndFlush(new BrokerageEntity(UUID.randomUUID(),owner,"Broker","broker"+UUID.randomUUID(),"61384004000105","Legal",null,"ACTIVE","BROKERS","01445000","Rua","Bairro","1",null,"São Paulo","SP",now,now)); return portfolios.saveAndFlush(new PortfolioEntity(UUID.randomUUID(),owner,"unused".equals("x")?null:b,"Portfolio "+UUID.randomUUID(),UUID.randomUUID().toString(),now,now)); }
 	private record Session(String token, UserEntity user) { }

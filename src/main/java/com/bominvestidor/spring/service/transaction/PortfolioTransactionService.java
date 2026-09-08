@@ -16,6 +16,7 @@ import com.bominvestidor.spring.domain.transaction.TransactionStates;
 import com.bominvestidor.spring.domain.transaction.TransactionType;
 import com.bominvestidor.spring.dto.transaction.PortfolioTransactionCreateRequest;
 import com.bominvestidor.spring.dto.transaction.PortfolioTransactionResponse;
+import com.bominvestidor.spring.dto.transaction.PortfolioTransactionUpdateRequest;
 import com.bominvestidor.spring.domain.asset.SelectedAsset;
 import com.bominvestidor.spring.entity.portfolio.PortfolioEntity;
 import com.bominvestidor.spring.entity.transaction.PortfolioTransactionEntity;
@@ -62,6 +63,29 @@ public class PortfolioTransactionService {
 		portfolioService.ownedPortfolio(ownerId, portfolioId);
 		reconciliationService.reconcile(portfolioId);
 		return repository.findAllByPortfolio_IdOrderByTransactionDateDescCreatedAtDesc(portfolioId).stream().map(mapper::toResponse).toList();
+	}
+
+	@Transactional
+	public PortfolioTransactionResponse update(UUID ownerId, UUID portfolioId, UUID transactionId,
+			PortfolioTransactionUpdateRequest request) {
+		portfolioService.ownedPortfolio(ownerId, portfolioId);
+		reconciliationService.reconcile(portfolioId);
+		PortfolioTransactionEntity transaction = repository.findByIdAndPortfolio_Id(transactionId, portfolioId)
+				.orElseThrow(PortfolioTransactionNotFoundException::new);
+		if (transaction.getStatus() != TransactionStatus.PENDING) {
+			throw conflict("TRANSACTION_CANNOT_BE_EDITED", "Only pending transactions can be edited");
+		}
+		Instant now = clock.instant();
+		transaction.updatePending(request.type(), request.transactionDate(), request.quantity(), request.unitPrice(),
+				request.costs() == null ? BigDecimal.ZERO : request.costs(), now);
+		var transactions = repository.findAllByPortfolio_IdOrderByTransactionDateAscCreatedAtAsc(portfolioId);
+		if (transaction.getType() == TransactionType.SELL) {
+			balanceService.validateSale(transactions, transaction);
+		}
+		if (!transaction.getTransactionDate().isAfter(LocalDate.now(clock))) {
+			transaction.effective(now);
+		}
+		return mapper.toResponse(transaction);
 	}
 
 	@Transactional

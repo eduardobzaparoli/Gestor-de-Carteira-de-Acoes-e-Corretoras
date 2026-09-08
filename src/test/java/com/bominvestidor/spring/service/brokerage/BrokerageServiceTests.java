@@ -7,6 +7,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -20,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import com.bominvestidor.spring.config.BrokerageIntegrationProperties;
 import com.bominvestidor.spring.domain.brokerage.Address;
@@ -32,6 +35,7 @@ import com.bominvestidor.spring.exception.BrokerageConflictException;
 import com.bominvestidor.spring.exception.CepNotFoundException;
 import com.bominvestidor.spring.integration.address.AddressProviderUnavailableException;
 import com.bominvestidor.spring.entity.user.UserEntity;
+import com.bominvestidor.spring.entity.brokerage.BrokerageEntity;
 import com.bominvestidor.spring.integration.address.AddressLookupData;
 import com.bominvestidor.spring.integration.address.AddressLookupStrategy;
 import com.bominvestidor.spring.integration.cnpj.CnpjLookupStrategy;
@@ -40,6 +44,7 @@ import com.bominvestidor.spring.integration.cvm.CvmParticipantData;
 import com.bominvestidor.spring.integration.cvm.CvmParticipantStrategy;
 import com.bominvestidor.spring.mapper.brokerage.BrokerageMapper;
 import com.bominvestidor.spring.repository.brokerage.BrokerageRepository;
+import com.bominvestidor.spring.repository.portfolio.PortfolioRepository;
 import com.bominvestidor.spring.repository.user.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,6 +59,7 @@ class BrokerageServiceTests {
 	@Mock private AddressLookupStrategy addressLookup;
 	@Mock private CvmParticipantStrategy cvmLookup;
 	@Mock private BrokeragePersistenceService persistenceService;
+	@Mock private PortfolioRepository portfolioRepository;
 
 	private BrokerageService service;
 	private final BrokerageMapper mapper = new BrokerageMapper();
@@ -62,7 +68,8 @@ class BrokerageServiceTests {
 	@BeforeEach
 	void setUp() {
 		service = new BrokerageService(userRepository, brokerageRepository, cnpjLookup, addressLookup, cvmLookup,
-				new BrokerageInputNormalizer(), persistenceService, mapper, properties, Clock.fixed(NOW, ZoneOffset.UTC));
+				new BrokerageInputNormalizer(), persistenceService, mapper, properties, Clock.fixed(NOW, ZoneOffset.UTC),
+				portfolioRepository);
 		when(userRepository.findById(OWNER_ID)).thenReturn(Optional.of(user()));
 		lenient().when(brokerageRepository.existsByOwner_IdAndCnpj(any(), any())).thenReturn(false);
 		lenient().when(brokerageRepository.existsByOwner_IdAndNicknameKey(any(), any())).thenReturn(false);
@@ -207,6 +214,56 @@ class BrokerageServiceTests {
 		when(addressLookup.findByCep("01001000")).thenThrow(new AddressProviderUnavailableException());
 		assertThrows(BrokerageProviderUnavailableException.class, () -> service.lookupCep(OWNER_ID, "01001000"));
 		verify(persistenceService, never()).save(any());
+	}
+
+	@Test
+	void looksUpOfficialCompanyNameBeforeRegistration() {
+		when(cnpjLookup.findByCnpj("04252011000110"))
+				.thenReturn(Optional.of(new CnpjRegistrationData("04252011000110", "Razão Social", "Nome", "04547000")));
+
+		var response = service.lookupCnpj(OWNER_ID, "04.252.011/0001-10");
+
+		assertEquals("Razão Social", response.legalName());
+		assertEquals("Nome", response.tradeName());
+	}
+
+	@Test
+	void deletesOnlyAnUnlinkedOwnedBrokerage() {
+		UUID brokerageId = UUID.randomUUID();
+		BrokerageEntity entity = mock(BrokerageEntity.class);
+		when(brokerageRepository.findByIdAndOwner_Id(brokerageId, OWNER_ID)).thenReturn(Optional.of(entity));
+
+		service.delete(OWNER_ID, brokerageId);
+
+		verify(brokerageRepository).delete(entity);
+		verify(brokerageRepository).flush();
+	}
+
+	@Test
+	void rejectsDeletionWhenBrokerageHasPortfolio() {
+		UUID brokerageId = UUID.randomUUID();
+		when(brokerageRepository.findByIdAndOwner_Id(brokerageId, OWNER_ID))
+				.thenReturn(Optional.of(mock(BrokerageEntity.class)));
+		when(portfolioRepository.existsByBrokerage_Id(brokerageId)).thenReturn(true);
+
+		BrokerageConflictException exception = assertThrows(BrokerageConflictException.class,
+				() -> service.delete(OWNER_ID, brokerageId));
+
+		assertEquals("BROKERAGE_HAS_PORTFOLIOS", exception.getCode());
+		verify(brokerageRepository, never()).delete(any());
+	}
+
+	@Test
+	void translatesConcurrentPortfolioLinkDuringDeletion() {
+		UUID brokerageId = UUID.randomUUID();
+		BrokerageEntity entity = mock(BrokerageEntity.class);
+		when(brokerageRepository.findByIdAndOwner_Id(brokerageId, OWNER_ID)).thenReturn(Optional.of(entity));
+		doThrow(new DataIntegrityViolationException("foreign key")).when(brokerageRepository).flush();
+
+		BrokerageConflictException exception = assertThrows(BrokerageConflictException.class,
+				() -> service.delete(OWNER_ID, brokerageId));
+
+		assertEquals("BROKERAGE_HAS_PORTFOLIOS", exception.getCode());
 	}
 
 	private BrokerageCreateRequest validRequest() {

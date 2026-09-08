@@ -18,6 +18,8 @@ public interface PortfolioRepository extends JpaRepository<PortfolioEntity, UUID
 
 	boolean existsByOwner_IdAndNameKey(UUID ownerId, String nameKey);
 
+	boolean existsByBrokerage_Id(UUID brokerageId);
+
 	@EntityGraph(attributePaths = { "owner", "brokerage" })
 	Optional<PortfolioEntity> findByIdAndOwner_Id(UUID id, UUID ownerId);
 

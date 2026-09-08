@@ -10,3 +10,12 @@ Com a aplicação em `http://localhost:8080`, o contrato fica em `/v3/api-docs` 
 Erros usam JSON com `timestamp`, `status`, `code`, `message`, `path` e `fieldErrors`. O código público é a referência estável para tratamento pelo cliente; mensagens não devem ser usadas como identificadores.
 
 O health check público está em `GET /actuator/health` e expõe somente o estado agregado.
+
+## Refinamentos usados pelo frontend
+
+- `GET /api/brokerages/cnpj?cnpj=<cnpj>` consulta os dados oficiais da empresa antes do cadastro e retorna `cnpj`, `legalName` e `tradeName`.
+- `DELETE /api/brokerages/{id}` exclui uma corretora do investidor quando ela não está vinculada a nenhuma carteira. Uma corretora vinculada responde com `409` e código `BROKERAGE_HAS_PORTFOLIOS`.
+- `PUT /api/portfolios/{portfolioId}/transactions/{transactionId}` atualiza tipo, data, quantidade, preço unitário e custos de um lançamento ainda pendente. Lançamentos efetivados ou cancelados respondem com `409` e código `TRANSACTION_CANNOT_BE_EDITED`.
+- `GET /api/portfolios/{portfolioId}/exchange-rates?sourceCurrency=USD&date=aaaa-mm-dd` retorna a taxa da moeda informada para BRL na data solicitada, após validar que a carteira pertence ao investidor autenticado.
+
+Datas enviadas à API permanecem no formato ISO `aaaa-mm-dd`; a conversão para `dd/mm/aaaa` é responsabilidade da interface. Valores decimais são enviados sem símbolo monetário e com ponto como separador decimal. A interface apresenta valores monetários em BRL; quando o ativo usa outra moeda, converte o valor somente para exibição e restaura a moeda nativa antes de enviar comandos financeiros à API.
