@@ -10,6 +10,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import com.bominvestidor.spring.dto.transaction.PortfolioTransactionCreateRequest;
 import com.bominvestidor.spring.dto.transaction.PortfolioTransactionResponse;
+import com.bominvestidor.spring.dto.transaction.PortfolioTransactionUpdateRequest;
 import com.bominvestidor.spring.service.transaction.PortfolioTransactionService;
 import jakarta.validation.Valid;
 
@@ -21,5 +22,10 @@ public class PortfolioTransactionController {
 			@Valid @RequestBody PortfolioTransactionCreateRequest request) { return ResponseEntity.status(HttpStatus.CREATED).body(service.create(ownerId(jwt), portfolioId, request)); }
 	@GetMapping public List<PortfolioTransactionResponse> findAll(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID portfolioId) { return service.findAll(ownerId(jwt), portfolioId); }
 	@DeleteMapping("/{transactionId}") public ResponseEntity<Void> cancel(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID portfolioId, @PathVariable UUID transactionId) { service.cancel(ownerId(jwt), portfolioId, transactionId); return ResponseEntity.noContent().build(); }
+	@PutMapping("/{transactionId}") public PortfolioTransactionResponse update(@AuthenticationPrincipal Jwt jwt,
+			@PathVariable UUID portfolioId, @PathVariable UUID transactionId,
+			@Valid @RequestBody PortfolioTransactionUpdateRequest request) {
+		return service.update(ownerId(jwt), portfolioId, transactionId, request);
+	}
 	private UUID ownerId(Jwt jwt) { return UUID.fromString(jwt.getSubject()); }
 }

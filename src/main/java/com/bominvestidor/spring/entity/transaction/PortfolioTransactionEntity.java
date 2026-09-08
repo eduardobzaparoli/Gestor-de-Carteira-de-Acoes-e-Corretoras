@@ -32,12 +32,12 @@ public class PortfolioTransactionEntity {
 	@Enumerated(EnumType.STRING) @Column(nullable = false, length = 8, updatable = false) private AssetMarket market;
 	@Enumerated(EnumType.STRING) @Column(name = "asset_type", nullable = false, length = 8, updatable = false) private AssetType assetType;
 	@Column(nullable = false, length = 8, updatable = false) private String currency;
-	@Enumerated(EnumType.STRING) @Column(nullable = false, length = 8, updatable = false) private TransactionType type;
+	@Enumerated(EnumType.STRING) @Column(nullable = false, length = 8) private TransactionType type;
 	@Enumerated(EnumType.STRING) @Column(nullable = false, length = 12) private TransactionStatus status;
-	@Column(name = "transaction_date", nullable = false, updatable = false) private LocalDate transactionDate;
-	@Column(nullable = false, precision = 19, scale = 8, updatable = false) private BigDecimal quantity;
-	@Column(name = "unit_price", nullable = false, precision = 19, scale = 8, updatable = false) private BigDecimal unitPrice;
-	@Column(nullable = false, precision = 19, scale = 8, updatable = false) private BigDecimal costs;
+	@Column(name = "transaction_date", nullable = false) private LocalDate transactionDate;
+	@Column(nullable = false, precision = 19, scale = 8) private BigDecimal quantity;
+	@Column(name = "unit_price", nullable = false, precision = 19, scale = 8) private BigDecimal unitPrice;
+	@Column(nullable = false, precision = 19, scale = 8) private BigDecimal costs;
 	@Column(name = "created_at", nullable = false, updatable = false) private Instant createdAt;
 	@Column(name = "updated_at", nullable = false) private Instant updatedAt;
 	protected PortfolioTransactionEntity() { }
@@ -50,6 +50,15 @@ public class PortfolioTransactionEntity {
 	}
 	public void effective(Instant now) { status = TransactionStatus.EFFECTIVE; updatedAt = now; }
 	public void cancel(Instant now) { status = TransactionStatus.CANCELLED; updatedAt = now; }
+	public void updatePending(TransactionType type, LocalDate transactionDate, BigDecimal quantity,
+			BigDecimal unitPrice, BigDecimal costs, Instant now) {
+		this.type = type;
+		this.transactionDate = transactionDate;
+		this.quantity = quantity;
+		this.unitPrice = unitPrice;
+		this.costs = costs;
+		this.updatedAt = now;
+	}
 	public UUID getId(){return id;} public PortfolioEntity getPortfolio(){return portfolio;} public String getTicker(){return ticker;}
 	public String getAssetName(){return assetName;} public AssetMarket getMarket(){return market;} public AssetType getAssetType(){return assetType;}
 	public String getCurrency(){return currency;} public TransactionType getType(){return type;} public TransactionStatus getStatus(){return status;}

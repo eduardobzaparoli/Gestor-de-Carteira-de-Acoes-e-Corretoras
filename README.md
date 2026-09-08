@@ -1,6 +1,6 @@
 # Bom Investidor
 
-API REST em Java 17 e Spring Boot para gestão privada de corretoras, carteiras, lançamentos, posições, valorização, evolução patrimonial e proventos.
+Aplicação completa para gestão privada de corretoras, carteiras, lançamentos, posições, valorização, evolução patrimonial e proventos. O backend usa Java 17 e Spring Boot; a interface web usa React, TypeScript e Vite.
 
 ## Início rápido
 
@@ -24,6 +24,16 @@ Para uma execução local explícita com H2, defina `SPRING_PROFILES_ACTIVE=h2` 
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
 - Health: `http://localhost:8080/actuator/health`
 
+Em outro terminal, instale e inicie o frontend (Node.js 22 recomendado):
+
+```powershell
+Set-Location frontend
+npm ci
+npm run dev
+```
+
+A interface estará em `http://localhost:5173`. Mantenha `CORS_ALLOWED_ORIGINS=http://localhost:5173` entre as variáveis do backend. Se a API estiver em outro endereço, copie `frontend/.env.example` para `frontend/.env.local` e ajuste somente `VITE_API_BASE_URL`. Variáveis `VITE_*` ficam públicas no bundle e nunca devem conter senhas, tokens ou chaves.
+
 Consulte [configuração](docs/configuration.md), [versionamento do banco](docs/database-migrations.md), [guia da API](docs/api-guide.md) e [operação](docs/operations.md).
 
 ## Validação de release
@@ -43,7 +53,17 @@ $env:DB_PASSWORD = "senha-de-teste"
 ./mvnw.cmd -Prelease-postgres test
 ```
 
-O GitHub Actions executa ambos em pull requests e em pushes para `dev`. Os gates usam dublês determinísticos para integrações externas; smoke tests reais são opcionais e não fazem parte do pipeline obrigatório.
+Valide também a interface:
+
+```powershell
+Set-Location frontend
+npm run format:check
+npm run lint
+npm test
+npm run build
+```
+
+O GitHub Actions executa os gates H2, PostgreSQL e frontend em pull requests e em pushes para `dev`. Os gates usam dublês determinísticos para integrações externas; smoke tests reais são opcionais e não fazem parte do pipeline obrigatório.
 
 ## Graphify (opcional)
 

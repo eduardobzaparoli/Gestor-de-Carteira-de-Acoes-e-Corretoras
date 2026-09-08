@@ -44,6 +44,15 @@ public class BrokerageInputNormalizer {
 		return cep;
 	}
 
+	public String normalizeCnpj(String value) {
+		List<FieldErrorResponse> errors = new ArrayList<>();
+		String cnpj = normalizeDocument(value, "cnpj", 14, errors);
+		if (!errors.isEmpty()) {
+			throw new InvalidBrokerageDataException(errors);
+		}
+		return cnpj;
+	}
+
 	private String normalizeDocument(String value, String field, int expectedLength, List<FieldErrorResponse> errors) {
 		String trimmed = trim(value);
 		if (trimmed == null || trimmed.isBlank()) {

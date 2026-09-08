@@ -29,6 +29,34 @@ Todos os perfis habilitam o Flyway, usam as migrations compartilhadas em `classp
 | `ADMIN_BOOTSTRAP_EMAIL` | todos | Não | E-mail do administrador inicial |
 | `ADMIN_BOOTSTRAP_PASSWORD` | todos | Não | Senha do administrador inicial |
 
+Para o frontend local, permita sua origem no backend:
+
+```text
+CORS_ALLOWED_ORIGINS=http://localhost:5173
+```
+
+## Frontend React
+
+Use Node.js 22 e mantenha o backend disponível antes de iniciar a interface:
+
+```powershell
+Set-Location frontend
+npm ci
+npm run dev
+```
+
+Por padrão, a interface consome `http://localhost:8080`. Para outro endereço, crie um arquivo local a partir do exemplo:
+
+```powershell
+Copy-Item .env.example .env.local
+```
+
+| Variável | Obrigatória | Padrão/finalidade |
+| --- | --- | --- |
+| `VITE_API_BASE_URL` | Não | `http://localhost:8080`; URL pública da API consumida pelo navegador |
+
+Não coloque `DB_PASSWORD`, `JWT_SECRET`, chaves de provedores ou qualquer outro segredo em variáveis `VITE_*`: o Vite incorpora esses valores aos arquivos entregues ao navegador. O arquivo `frontend/.env.local` é ignorado pelo Git.
+
 ## Arquivo `.env` local
 
 O repositório fornece `.env.example` somente como modelo. Crie sua cópia local:

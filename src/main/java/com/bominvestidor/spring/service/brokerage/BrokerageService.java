@@ -5,8 +5,10 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.bominvestidor.spring.config.BrokerageIntegrationProperties;
 import com.bominvestidor.spring.domain.brokerage.Address;
@@ -15,11 +17,14 @@ import com.bominvestidor.spring.domain.user.UserRole;
 import com.bominvestidor.spring.dto.brokerage.BrokerageCreateRequest;
 import com.bominvestidor.spring.dto.brokerage.BrokerageResponse;
 import com.bominvestidor.spring.dto.brokerage.CepLookupResponse;
+import com.bominvestidor.spring.dto.brokerage.CnpjLookupResponse;
 import com.bominvestidor.spring.entity.user.UserEntity;
 import com.bominvestidor.spring.exception.AuthenticatedUserNotFoundException;
-import com.bominvestidor.spring.exception.CepNotFoundException;
+import com.bominvestidor.spring.exception.BrokerageConflictException;
+import com.bominvestidor.spring.exception.BrokerageNotFoundException;
 import com.bominvestidor.spring.exception.BrokerageProviderUnavailableException;
 import com.bominvestidor.spring.exception.BrokerageRuleException;
+import com.bominvestidor.spring.exception.CepNotFoundException;
 import com.bominvestidor.spring.integration.address.AddressLookupData;
 import com.bominvestidor.spring.integration.address.AddressLookupStrategy;
 import com.bominvestidor.spring.integration.address.AddressProviderUnavailableException;
@@ -31,6 +36,7 @@ import com.bominvestidor.spring.integration.cvm.CvmParticipantStrategy;
 import com.bominvestidor.spring.integration.cvm.CvmProviderUnavailableException;
 import com.bominvestidor.spring.mapper.brokerage.BrokerageMapper;
 import com.bominvestidor.spring.repository.brokerage.BrokerageRepository;
+import com.bominvestidor.spring.repository.portfolio.PortfolioRepository;
 import com.bominvestidor.spring.repository.user.UserRepository;
 
 @Service
@@ -46,12 +52,13 @@ public class BrokerageService {
 	private final BrokerageMapper mapper;
 	private final BrokerageIntegrationProperties properties;
 	private final Clock clock;
+	private final PortfolioRepository portfolioRepository;
 
 	public BrokerageService(UserRepository userRepository, BrokerageRepository brokerageRepository,
 			CnpjLookupStrategy cnpjLookup, AddressLookupStrategy addressLookup,
 			CvmParticipantStrategy cvmParticipantLookup, BrokerageInputNormalizer normalizer,
 			BrokeragePersistenceService persistenceService, BrokerageMapper mapper,
-			BrokerageIntegrationProperties properties, Clock clock) {
+			BrokerageIntegrationProperties properties, Clock clock, PortfolioRepository portfolioRepository) {
 		this.userRepository = userRepository;
 		this.brokerageRepository = brokerageRepository;
 		this.cnpjLookup = cnpjLookup;
@@ -62,6 +69,20 @@ public class BrokerageService {
 		this.mapper = mapper;
 		this.properties = properties;
 		this.clock = clock;
+		this.portfolioRepository = portfolioRepository;
+	}
+
+	public CnpjLookupResponse lookupCnpj(UUID ownerId, String rawCnpj) {
+		requireInvestor(ownerId);
+		String cnpj = normalizer.normalizeCnpj(rawCnpj);
+		try {
+			CnpjRegistrationData data = cnpjLookup.findByCnpj(cnpj)
+					.orElseThrow(() -> new BrokerageRuleException("CNPJ_NOT_FOUND", "CNPJ was not found"));
+			return new CnpjLookupResponse(data.cnpj(), data.legalName(), data.tradeName());
+		}
+		catch (CnpjProviderUnavailableException exception) {
+			throw new BrokerageProviderUnavailableException("CNPJ_PROVIDER_UNAVAILABLE", "CNPJ provider is unavailable");
+		}
 	}
 
 	public CepLookupResponse lookupCep(UUID ownerId, String rawCep) {
@@ -131,6 +152,25 @@ public class BrokerageService {
 	public List<BrokerageResponse> findAll(UUID ownerId) {
 		requireInvestor(ownerId);
 		return persistenceService.findAllByOwner(ownerId).stream().map(mapper::toResponse).toList();
+	}
+
+	@Transactional
+	public void delete(UUID ownerId, UUID brokerageId) {
+		requireInvestor(ownerId);
+		var brokerage = brokerageRepository.findByIdAndOwner_Id(brokerageId, ownerId)
+				.orElseThrow(BrokerageNotFoundException::new);
+		if (portfolioRepository.existsByBrokerage_Id(brokerageId)) {
+			throw new BrokerageConflictException(
+					"BROKERAGE_HAS_PORTFOLIOS", "Brokerage is linked to a portfolio");
+		}
+		try {
+			brokerageRepository.delete(brokerage);
+			brokerageRepository.flush();
+		}
+		catch (DataIntegrityViolationException exception) {
+			throw new BrokerageConflictException(
+					"BROKERAGE_HAS_PORTFOLIOS", "Brokerage is linked to a portfolio");
+		}
 	}
 
 	private UserEntity requireInvestor(UUID ownerId) {

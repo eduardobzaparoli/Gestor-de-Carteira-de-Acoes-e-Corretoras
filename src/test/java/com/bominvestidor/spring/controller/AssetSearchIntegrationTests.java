@@ -51,6 +51,21 @@ class AssetSearchIntegrationTests {
 	@Autowired MockMvc mockMvc; @Autowired AuthService authService; @Autowired UserRepository users;
 	@Autowired BrokerageRepository brokerages; @Autowired PortfolioRepository portfolios; @Autowired AssetSelectionCache selections;
 
+	@Test void returnsTheRequestedExchangeRateOnlyForThePortfolioOwner() throws Exception {
+		Session session = session(); UUID portfolioId = portfolio(session.user()).getId();
+		String path = "/api/portfolios/{id}/exchange-rates";
+		mockMvc.perform(get(path, portfolioId).param("sourceCurrency", "USD").param("date", LocalDate.now().toString())
+				.header("Authorization", "Bearer " + session.token()))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.sourceCurrency").value("USD"))
+				.andExpect(jsonPath("$.targetCurrency").value("BRL")).andExpect(jsonPath("$.rate").value(5.00));
+		mockMvc.perform(get(path, portfolioId).param("sourceCurrency", "USD").param("date", LocalDate.now().toString()))
+				.andExpect(status().isUnauthorized());
+		Session other = session();
+		mockMvc.perform(get(path, portfolioId).param("sourceCurrency", "USD").param("date", LocalDate.now().toString())
+				.header("Authorization", "Bearer " + other.token()))
+				.andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("PORTFOLIO_NOT_FOUND"));
+	}
+
 	@Test void returnsPublicQuotedResultsAndProtectsTheRoute() throws Exception {
 		Session first = session(); UUID portfolioId = portfolio(first.user()).getId();
 		mockMvc.perform(get("/api/portfolios/{id}/assets", portfolioId).param("market", "BR").param("assetType", "STOCK").param("query", "PETR").header("Authorization", "Bearer " + first.token()))

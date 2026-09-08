@@ -85,7 +85,8 @@ class EnvironmentConfigurationFilesTests {
         assertTrue(jwtSecret.length() >= 32);
         assertEquals("troque-por-sua-chave", properties.getProperty("ALPHA_VANTAGE_API_KEY"));
         assertEquals("troque-por-seu-token", properties.getProperty("BRAPI_TOKEN"));
-        assertEquals(7, properties.size());
+        assertEquals("http://localhost:5173", properties.getProperty("CORS_ALLOWED_ORIGINS"));
+        assertEquals(8, properties.size());
     }
 
     @Test
