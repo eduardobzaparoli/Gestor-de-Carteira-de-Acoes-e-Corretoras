@@ -82,7 +82,7 @@ export function PortfoliosPage() {
       />
       <div className="summary-strip">
         <div>
-          <span className="eyebrow" style={{ color: "#79ddbc" }}>
+          <span className="eyebrow" style={{ color: "#fdba74" }}>
             Central de investimentos
           </span>
           <h2 style={{ margin: ".35rem 0 0" }}>

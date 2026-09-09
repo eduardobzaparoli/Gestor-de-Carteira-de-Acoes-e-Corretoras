@@ -29,7 +29,7 @@ function AuthFrame({ children }: { children: React.ReactNode }) {
           Bom Investidor
         </div>
         <div className="auth-copy">
-          <span className="eyebrow" style={{ color: "#70dbb8" }}>
+          <span className="eyebrow" style={{ color: "#fdba74" }}>
             Seu patrimônio, com clareza
           </span>
           <h1>Decisões melhores começam com uma visão completa.</h1>

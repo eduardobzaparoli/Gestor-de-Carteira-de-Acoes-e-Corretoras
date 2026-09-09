@@ -84,12 +84,12 @@ import type {
 } from "../../types/api";
 
 const colors = [
-  "#21a179",
+  "#c2410c",
   "#316b83",
   "#d99b3e",
   "#7256a8",
   "#d76060",
-  "#74b49b",
+  "#9a5b3c",
   "#557a95",
 ];
 const queryKeys = (id: string) => [
@@ -362,7 +362,7 @@ function Dashboard({
                       <Line
                         type="monotone"
                         dataKey="investedValue"
-                        stroke="#93aaa4"
+                        stroke="#9a8c83"
                         strokeWidth={2}
                         dot={false}
                         isAnimationActive={false}
@@ -370,7 +370,7 @@ function Dashboard({
                       <Line
                         type="monotone"
                         dataKey="marketValue"
-                        stroke="#21a179"
+                        stroke="#c2410c"
                         strokeWidth={3}
                         dot={false}
                         isAnimationActive={false}
@@ -382,14 +382,14 @@ function Dashboard({
                   <span>
                     <i
                       className="legend-dot"
-                      style={{ background: "#21a179" }}
+                      style={{ background: "#c2410c" }}
                     />
                     Patrimônio
                   </span>
                   <span>
                     <i
                       className="legend-dot"
-                      style={{ background: "#93aaa4" }}
+                      style={{ background: "#9a8c83" }}
                     />
                     Valor investido
                   </span>
@@ -484,7 +484,7 @@ function Dashboard({
               <h3>Moedas e proventos</h3>
               <p>Consolidação informada pela API</p>
             </div>
-            <Banknote color="#21a179" />
+            <Banknote color="#c2410c" />
           </div>
           {valuation.data?.currencySummaries.map((item) => (
             <div className="currency-row" key={item.currency}>
