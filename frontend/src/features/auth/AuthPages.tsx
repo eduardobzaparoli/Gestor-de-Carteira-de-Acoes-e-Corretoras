@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { Button, Field } from "../../components/ui";
+import { ThemeToggle } from "../../components/ThemeToggle";
 import { ApiError, apiMessage, localizedFieldMessage } from "../../lib/http";
 import { useAuth } from "../../app/AuthContext";
 
@@ -21,6 +22,7 @@ type RegisterData = z.infer<typeof registerSchema>;
 function AuthFrame({ children }: { children: React.ReactNode }) {
   return (
     <main className="auth-layout">
+      <ThemeToggle className="auth-theme-toggle" />
       <section className="auth-hero">
         <div className="brand">
           <span className="brand-mark">
@@ -29,7 +31,7 @@ function AuthFrame({ children }: { children: React.ReactNode }) {
           Bom Investidor
         </div>
         <div className="auth-copy">
-          <span className="eyebrow" style={{ color: "#fdba74" }}>
+          <span className="eyebrow eyebrow--on-dark">
             Seu patrimônio, com clareza
           </span>
           <h1>Decisões melhores começam com uma visão completa.</h1>
