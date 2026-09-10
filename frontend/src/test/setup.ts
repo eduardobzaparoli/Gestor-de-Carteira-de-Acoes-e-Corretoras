@@ -1,9 +1,14 @@
 import "@testing-library/jest-dom/vitest";
-import { afterAll, afterEach, beforeAll, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { server } from "./server";
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+beforeEach(() => {
+  localStorage.clear();
+  document.documentElement.removeAttribute("data-theme");
+  document.documentElement.style.colorScheme = "";
+});
 afterEach(() => {
   cleanup();
   server.resetHandlers();

@@ -46,6 +46,7 @@ import {
   notify,
 } from "../../components/ui";
 import { AssetLogo, AssetLogoAttribution } from "../../components/AssetLogo";
+import { useTheme } from "../../app/ThemeContext";
 import { api, apiMessage } from "../../lib/http";
 import {
   asNumber,
@@ -83,15 +84,40 @@ import type {
   ValuationPosition,
 } from "../../types/api";
 
-const colors = [
-  "#c2410c",
-  "#316b83",
-  "#d99b3e",
-  "#7256a8",
-  "#d76060",
-  "#9a5b3c",
-  "#557a95",
-];
+const chartPalettes = {
+  light: {
+    primary: "#c2410c",
+    secondary: "#9a8c83",
+    text: "#786b63",
+    line: "#eadfd5",
+    tooltip: "#ffffff",
+    colors: [
+      "#c2410c",
+      "#316b83",
+      "#d99b3e",
+      "#7256a8",
+      "#d76060",
+      "#9a5b3c",
+      "#557a95",
+    ],
+  },
+  dark: {
+    primary: "#fb923c",
+    secondary: "#b1a39a",
+    text: "#b9aaa1",
+    line: "#403833",
+    tooltip: "#24211f",
+    colors: [
+      "#fb923c",
+      "#67b7d1",
+      "#f2b95f",
+      "#a992e0",
+      "#f08080",
+      "#d28a62",
+      "#82aeca",
+    ],
+  },
+} as const;
 const queryKeys = (id: string) => [
   ["portfolio", id],
   ["positions", id],
@@ -264,6 +290,8 @@ function Dashboard({
   income: UseQueryResult<IncomeSummary>;
   onNew: () => void;
 }) {
+  const { theme } = useTheme();
+  const chartPalette = chartPalettes[theme];
   const summary = valuation.data?.consolidatedSummary;
   const gain = asNumber(summary?.totalGain);
   const pieData =
@@ -345,14 +373,25 @@ function Dashboard({
                       <XAxis
                         dataKey="date"
                         tickFormatter={(v) => date(v).slice(0, 5)}
-                        tick={{ fontSize: 11 }}
+                        tick={{ fontSize: 11, fill: chartPalette.text }}
+                        axisLine={{ stroke: chartPalette.line }}
+                        tickLine={{ stroke: chartPalette.line }}
                       />
                       <YAxis
                         tickFormatter={(v) => number(v, 0)}
-                        tick={{ fontSize: 11 }}
+                        tick={{ fontSize: 11, fill: chartPalette.text }}
+                        axisLine={{ stroke: chartPalette.line }}
+                        tickLine={{ stroke: chartPalette.line }}
                         width={54}
                       />
                       <Tooltip
+                        contentStyle={{
+                          background: chartPalette.tooltip,
+                          borderColor: chartPalette.line,
+                          color: chartPalette.text,
+                          borderRadius: 10,
+                        }}
+                        labelStyle={{ color: chartPalette.text }}
                         labelFormatter={(v) => date(String(v))}
                         formatter={(v, name) => [
                           money(Number(v)),
@@ -362,7 +401,7 @@ function Dashboard({
                       <Line
                         type="monotone"
                         dataKey="investedValue"
-                        stroke="#9a8c83"
+                        stroke={chartPalette.secondary}
                         strokeWidth={2}
                         dot={false}
                         isAnimationActive={false}
@@ -370,7 +409,7 @@ function Dashboard({
                       <Line
                         type="monotone"
                         dataKey="marketValue"
-                        stroke="#c2410c"
+                        stroke={chartPalette.primary}
                         strokeWidth={3}
                         dot={false}
                         isAnimationActive={false}
@@ -382,14 +421,14 @@ function Dashboard({
                   <span>
                     <i
                       className="legend-dot"
-                      style={{ background: "#c2410c" }}
+                      style={{ background: chartPalette.primary }}
                     />
                     Patrimônio
                   </span>
                   <span>
                     <i
                       className="legend-dot"
-                      style={{ background: "#9a8c83" }}
+                      style={{ background: chartPalette.secondary }}
                     />
                     Valor investido
                   </span>
@@ -443,11 +482,24 @@ function Dashboard({
                           {pieData.map((_, index) => (
                             <Cell
                               key={index}
-                              fill={colors[index % colors.length]}
+                              fill={
+                                chartPalette.colors[
+                                  index % chartPalette.colors.length
+                                ]
+                              }
                             />
                           ))}
                         </Pie>
-                        <Tooltip formatter={(v) => percent(Number(v))} />
+                        <Tooltip
+                          contentStyle={{
+                            background: chartPalette.tooltip,
+                            borderColor: chartPalette.line,
+                            color: chartPalette.text,
+                            borderRadius: 10,
+                          }}
+                          itemStyle={{ color: chartPalette.text }}
+                          formatter={(v) => percent(Number(v))}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -461,7 +513,12 @@ function Dashboard({
                     <span key={item.name}>
                       <i
                         className="legend-dot"
-                        style={{ background: colors[index % colors.length] }}
+                        style={{
+                          background:
+                            chartPalette.colors[
+                              index % chartPalette.colors.length
+                            ],
+                        }}
                       />
                       {item.name} · {percent(item.value)}
                     </span>
@@ -484,7 +541,7 @@ function Dashboard({
               <h3>Moedas e proventos</h3>
               <p>Consolidação informada pela API</p>
             </div>
-            <Banknote color="#c2410c" />
+            <Banknote className="primary-icon" />
           </div>
           {valuation.data?.currencySummaries.map((item) => (
             <div className="currency-row" key={item.currency}>
@@ -1128,7 +1185,7 @@ function TransactionDialog({
                 : "Selecione um ativo para continuar."}
             </p>
             {future && (
-              <p style={{ color: "#92500b", margin: ".5rem 0 0" }}>
+              <p className="warning-text">
                 <CalendarClock size={15} /> Data futura: o lançamento ficará
                 pendente.
               </p>

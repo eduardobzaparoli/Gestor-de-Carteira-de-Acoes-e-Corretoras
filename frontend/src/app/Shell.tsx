@@ -11,6 +11,7 @@ import {
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { Button } from "../components/ui";
+import { ThemeToggle } from "../components/ThemeToggle";
 import { useAuth } from "./AuthContext";
 
 export function Shell() {
@@ -36,11 +37,14 @@ export function Shell() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand">
-          <span className="brand-mark">
-            <TrendingUp size={21} />
-          </span>
-          Bom Investidor
+        <div className="sidebar-header">
+          <div className="brand">
+            <span className="brand-mark">
+              <TrendingUp size={21} />
+            </span>
+            Bom Investidor
+          </div>
+          <ThemeToggle className="theme-toggle--compact" />
         </div>
         <span className="nav-label">Visão geral</span>
         {links}
@@ -60,13 +64,16 @@ export function Shell() {
           </span>
           Bom Investidor
         </div>
-        <button
-          className="icon-button"
-          onClick={() => setOpen(!open)}
-          aria-label={open ? "Fechar menu" : "Abrir menu"}
-        >
-          {open ? <X /> : <Menu />}
-        </button>
+        <div className="mobile-header__actions">
+          <ThemeToggle className="theme-toggle--compact" />
+          <button
+            className="icon-button"
+            onClick={() => setOpen(!open)}
+            aria-label={open ? "Fechar menu" : "Abrir menu"}
+          >
+            {open ? <X /> : <Menu />}
+          </button>
+        </div>
         {open && (
           <div className="mobile-menu">
             {links}

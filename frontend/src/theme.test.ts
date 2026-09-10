@@ -6,6 +6,10 @@ const sourceFiles = [
   "./features/auth/AuthPages.tsx",
   "./features/portfolios/PortfoliosPage.tsx",
   "./features/portfolios/PortfolioPage.tsx",
+  "./app/theme.ts",
+  "./app/ThemeContext.tsx",
+  "./components/ThemeToggle.tsx",
+  "../index.html",
 ];
 
 const themeSource = sourceFiles
@@ -18,6 +22,15 @@ describe("identidade cromática", () => {
     expect(themeSource).toContain("--primary: #c2410c");
     expect(themeSource).toContain("--primary-dark: #9a3412");
     expect(themeSource).toContain("--primary-soft: #ffedd5");
+  });
+
+  test("define temas claro e escuro com superfícies semânticas", () => {
+    expect(themeSource).toContain(':root[data-theme="dark"]');
+    expect(themeSource).toContain("--page-bg: #fffaf5");
+    expect(themeSource).toContain("--page-bg: #11100f");
+    expect(themeSource).toContain("--surface-solid: #1d1b1a");
+    expect(themeSource).toContain("dataset.theme = theme");
+    expect(themeSource).toContain("bom-investidor.theme");
   });
 
   test("não mantém tokens ou cores da antiga identidade verde", () => {

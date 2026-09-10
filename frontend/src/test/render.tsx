@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { AuthProvider } from "../app/AuthContext";
+import { ThemeProvider } from "../app/ThemeContext";
 import type { PublicUser } from "../types/api";
 
 export const investor: PublicUser = {
@@ -32,10 +33,12 @@ export function renderApp(children: React.ReactNode, route = "/") {
   });
   window.history.pushState({}, "", route);
   return render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[route]}>
-        <AuthProvider>{children}</AuthProvider>
-      </MemoryRouter>
-    </QueryClientProvider>,
+    <ThemeProvider>
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[route]}>
+          <AuthProvider>{children}</AuthProvider>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </ThemeProvider>,
   );
 }

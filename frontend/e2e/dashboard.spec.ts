@@ -10,6 +10,11 @@ const investor = {
 test("apresenta o dashboard financeiro com dados representativos", async ({
   page,
 }, testInfo) => {
+  await page.addInitScript(() => {
+    if (!localStorage.getItem("bom-investidor.theme")) {
+      localStorage.setItem("bom-investidor.theme", "light");
+    }
+  });
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
@@ -159,6 +164,17 @@ test("apresenta o dashboard financeiro com dados representativos", async ({
   expect(hasHorizontalOverflow).toBe(false);
   await page.screenshot({
     path: testInfo.outputPath("dashboard.png"),
+    fullPage: true,
+  });
+
+  await page.getByRole("button", { name: "Ativar modo escuro" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator("body")).toHaveCSS(
+    "background-color",
+    "rgb(17, 16, 15)",
+  );
+  await page.screenshot({
+    path: testInfo.outputPath("dashboard-dark.png"),
     fullPage: true,
   });
 });
