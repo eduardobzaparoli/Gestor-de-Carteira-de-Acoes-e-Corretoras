@@ -84,9 +84,24 @@ class EnvironmentConfigurationFilesTests {
         assertTrue(jwtSecret.startsWith("troque-por-"));
         assertTrue(jwtSecret.length() >= 32);
         assertEquals("troque-por-sua-chave", properties.getProperty("ALPHA_VANTAGE_API_KEY"));
+        assertEquals("troque-por-sua-chave-twelve-data", properties.getProperty("TWELVE_DATA_API_KEY"));
         assertEquals("troque-por-seu-token", properties.getProperty("BRAPI_TOKEN"));
         assertEquals("http://localhost:5173", properties.getProperty("CORS_ALLOWED_ORIGINS"));
-        assertEquals(8, properties.size());
+        assertEquals(9, properties.size());
+    }
+
+    @Test
+    void externalizesIndependentMarketProviderConfiguration() throws IOException {
+        Properties properties = loadProperties("src/main/resources/application.properties");
+
+        assertEquals("${TWELVE_DATA_BASE_URL:https://api.twelvedata.com}",
+                properties.getProperty("app.integrations.twelve-data-base-url"));
+        assertEquals("${TWELVE_DATA_API_KEY:}",
+                properties.getProperty("app.integrations.twelve-data-api-key"));
+        assertEquals("${ALPHA_VANTAGE_BASE_URL:https://www.alphavantage.co}",
+                properties.getProperty("app.integrations.alpha-vantage-base-url"));
+        assertEquals("${ALPHA_VANTAGE_API_KEY:}",
+                properties.getProperty("app.integrations.alpha-vantage-api-key"));
     }
 
     @Test

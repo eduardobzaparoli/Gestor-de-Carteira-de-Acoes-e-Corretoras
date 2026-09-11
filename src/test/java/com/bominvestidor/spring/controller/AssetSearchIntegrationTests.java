@@ -100,7 +100,7 @@ class AssetSearchIntegrationTests {
 		mockMvc.perform(get("/api/portfolios/{id}/assets", portfolioId).param("market", "BR").param("assetType", "STOCK").param("query", "FAIL").header("Authorization", "Bearer " + session.token()))
 			.andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.code").value("BRAPI_PROVIDER_UNAVAILABLE"));
 		mockMvc.perform(get("/api/portfolios/{id}/assets", portfolioId).param("market", "US").param("assetType", "STOCK").param("query", "FAIL").header("Authorization", "Bearer " + session.token()))
-			.andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.code").value("ALPHAVANTAGE_RATE_LIMITED"));
+			.andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.code").value("TWELVE_DATA_RATE_LIMITED"));
 	}
 
 	@Test void valuesOpenPositionsByCurrencyAndProtectsTheRoute() throws Exception {
@@ -177,5 +177,5 @@ class AssetSearchIntegrationTests {
 					? Optional.of(new ExchangeRate(source, target, new BigDecimal("5.00"), date.minusDays(1))) : Optional.empty();
 		}
 	}
-	static class Stub implements AssetSearchStrategy { final AssetMarket market; Stub(AssetMarket market){this.market=market;} public AssetMarket market(){return market;} public List<AssetCandidate> findCandidates(AssetType type,String query){if("FAIL".equals(query)) throw new AssetProviderUnavailableException(market==AssetMarket.US?"ALPHAVANTAGE_RATE_LIMITED":"BRAPI_PROVIDER_UNAVAILABLE","provider unavailable"); if("EMPTY".equals(query)) return List.of(); return List.of(new AssetCandidate(market==AssetMarket.BR?"PETR4":"SPY",market==AssetMarket.BR?"Petrobras":"SPDR",market,type,market==AssetMarket.BR?"BRL":"USD"));} public Optional<AssetQuote> findQuote(String ticker){return Optional.of(new AssetQuote(ticker,market==AssetMarket.BR?"BRL":"USD",new BigDecimal("35.10")));} }
+	static class Stub implements AssetSearchStrategy { final AssetMarket market; Stub(AssetMarket market){this.market=market;} public AssetMarket market(){return market;} public List<AssetCandidate> findCandidates(AssetType type,String query){if("FAIL".equals(query)) throw new AssetProviderUnavailableException(market==AssetMarket.US?"TWELVE_DATA_RATE_LIMITED":"BRAPI_PROVIDER_UNAVAILABLE","provider unavailable"); if("EMPTY".equals(query)) return List.of(); return List.of(new AssetCandidate(market==AssetMarket.BR?"PETR4":"SPY",market==AssetMarket.BR?"Petrobras":"SPDR",market,type,market==AssetMarket.BR?"BRL":"USD"));} public Optional<AssetQuote> findQuote(String ticker){return Optional.of(new AssetQuote(ticker,market==AssetMarket.BR?"BRL":"USD",new BigDecimal("35.10")));} }
 }

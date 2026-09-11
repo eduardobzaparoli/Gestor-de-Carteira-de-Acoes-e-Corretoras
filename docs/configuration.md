@@ -117,6 +117,8 @@ $env:DB_URL = "jdbc:postgresql://localhost:5432/bominvestidor"
 $env:DB_USERNAME = "postgres"
 $env:DB_PASSWORD = "sua-senha-local"
 $env:JWT_SECRET = "seu-segredo-local-com-pelo-menos-32-bytes"
+$env:TWELVE_DATA_API_KEY = "sua-chave-twelve-data"
+$env:ALPHA_VANTAGE_API_KEY = "sua-chave-alpha-vantage"
 .\mvnw.cmd spring-boot:run
 ```
 
@@ -130,6 +132,8 @@ export DB_URL=jdbc:postgresql://localhost:5432/bominvestidor
 export DB_USERNAME=postgres
 export DB_PASSWORD='sua-senha-local'
 export JWT_SECRET='seu-segredo-local-com-pelo-menos-32-bytes'
+export TWELVE_DATA_API_KEY='sua-chave-twelve-data'
+export ALPHA_VANTAGE_API_KEY='sua-chave-alpha-vantage'
 ./mvnw spring-boot:run
 ```
 
@@ -156,8 +160,10 @@ As URLs possuem padrões públicos configurados em `application.properties`. As 
 | `CVM_SNAPSHOT_URL` | Não | Snapshot oficial de intermediários da CVM |
 | `BRAPI_BASE_URL` | Não | `https://brapi.dev` |
 | `BRAPI_TOKEN` | Não | Token para capacidades contratadas da Brapi |
+| `TWELVE_DATA_BASE_URL` | Não | `https://api.twelvedata.com` |
+| `TWELVE_DATA_API_KEY` | Não | Chave usada em pesquisa, cotação e histórico de ativos dos EUA |
 | `ALPHA_VANTAGE_BASE_URL` | Não | `https://www.alphavantage.co` |
-| `ALPHA_VANTAGE_API_KEY` | Não | Chave da Alpha Vantage |
+| `ALPHA_VANTAGE_API_KEY` | Não | Chave usada exclusivamente na consulta de dividendos dos EUA |
 | `INTEGRATIONS_CONNECT_TIMEOUT` | Não | `PT3S` |
 | `INTEGRATIONS_READ_TIMEOUT` | Não | `PT5S` |
 | `CVM_CACHE_TTL` | Não | `PT24H` |
@@ -170,7 +176,13 @@ As URLs possuem padrões públicos configurados em `application.properties`. As 
 | `HISTORICAL_PRICE_WINDOW_DAYS` | Não | `90` |
 | `HISTORICAL_PRICE_CACHE_TTL` | Não | `PT15M` |
 
-`BRAPI_TOKEN` e `ALPHA_VANTAGE_API_KEY` são opcionais para iniciar, mas capacidades dependentes do respectivo provedor podem responder com indisponibilidade.
+`BRAPI_TOKEN`, `TWELVE_DATA_API_KEY` e `ALPHA_VANTAGE_API_KEY` são opcionais para iniciar. A ausência de uma credencial desabilita somente as capacidades do respectivo provedor: a Twelve Data atende pesquisa, cotação e histórico dos EUA; a Alpha Vantage permanece responsável pelos dividendos dos EUA; e a Brapi atende o mercado brasileiro. Não há fallback de cotação ou histórico para a Alpha Vantage.
+
+### Limites e uso dos dados da Twelve Data
+
+O consumo da Twelve Data é contabilizado por créditos e está sujeito aos limites do plano contratado. No plano Basic, a referência vigente no momento desta configuração é de 8 créditos por minuto e 800 por dia; endpoints ou planos diferentes podem ter custos e limites próprios. Respostas de limite excedido são apresentadas pela API com o código público `TWELVE_DATA_RATE_LIMITED`, sem expor a chave ou o corpo técnico do provedor.
+
+Antes de publicar ou comercializar a aplicação, confira os [limites atuais](https://twelvedata.com/pricing) e os [termos de uso e atribuição](https://twelvedata.com/terms). A licença e a possibilidade de redistribuição dos dados dependem do plano e das bolsas consultadas; não presuma que a chave de desenvolvimento autoriza redistribuição pública.
 
 ## Segurança e verificação
 

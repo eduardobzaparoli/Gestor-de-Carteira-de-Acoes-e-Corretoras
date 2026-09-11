@@ -34,6 +34,11 @@ public class BrokerageIntegrationConfig {
 		return client(properties.getBrapiBaseUrl(), properties.getConnectTimeout(), properties.getReadTimeout());
 	}
 
+	@Bean("twelveDataRestClient")
+	RestClient twelveDataRestClient(BrokerageIntegrationProperties properties) {
+		return client(properties.getTwelveDataBaseUrl(), properties.getConnectTimeout(), properties.getReadTimeout());
+	}
+
 	@Bean("alphaVantageRestClient")
 	RestClient alphaVantageRestClient(BrokerageIntegrationProperties properties) {
 		return client(properties.getAlphaVantageBaseUrl(), properties.getConnectTimeout(), properties.getReadTimeout());
