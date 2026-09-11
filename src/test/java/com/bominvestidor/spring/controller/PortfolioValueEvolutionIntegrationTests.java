@@ -169,8 +169,8 @@ class PortfolioValueEvolutionIntegrationTests {
 				LocalDate.of(2026, 8, 27), "1", "400", "1", 4);
 		mockMvc.perform(get(path(limited)).with(investor(session)))
 				.andExpect(status().isServiceUnavailable())
-				.andExpect(jsonPath("$.code").value("ALPHAVANTAGE_RATE_LIMITED"))
-				.andExpect(jsonPath("$.message").value("Alpha Vantage rate limit reached"))
+				.andExpect(jsonPath("$.code").value("TWELVE_DATA_RATE_LIMITED"))
+				.andExpect(jsonPath("$.message").value("Twelve Data rate limit reached"))
 				.andExpect(jsonPath("$.providerPayload").doesNotExist());
 	}
 
@@ -237,7 +237,7 @@ class PortfolioValueEvolutionIntegrationTests {
 		private HistoricalStub(AssetMarket market) { this.market = market; }
 		@Override public AssetMarket market() { return market; }
 		@Override public HistoricalAssetPriceSeries findSeries(String ticker, String currency, LocalDate startDate, LocalDate endDate) {
-			if ("LIMIT".equals(ticker)) throw new AssetProviderUnavailableException("ALPHAVANTAGE_RATE_LIMITED", "Alpha Vantage rate limit reached");
+			if ("LIMIT".equals(ticker)) throw new AssetProviderUnavailableException("TWELVE_DATA_RATE_LIMITED", "Twelve Data rate limit reached");
 			NavigableMap<LocalDate, HistoricalAssetPrice> prices = new TreeMap<>();
 			if ("TRUNC".equals(ticker)) {
 				put(prices, "2026-08-28", "10");

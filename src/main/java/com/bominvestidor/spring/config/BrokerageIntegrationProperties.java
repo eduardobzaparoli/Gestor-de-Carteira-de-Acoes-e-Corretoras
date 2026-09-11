@@ -17,6 +17,8 @@ public class BrokerageIntegrationProperties {
 	private long cvmMaxSnapshotBytes = 10_000_000L;
 	private String brapiBaseUrl = "https://brapi.dev";
 	private String brapiToken = "";
+	private String twelveDataBaseUrl = "https://api.twelvedata.com";
+	private String twelveDataApiKey = "";
 	private String alphaVantageBaseUrl = "https://www.alphavantage.co";
 	private String alphaVantageApiKey = "";
 	private Duration assetSearchCacheTtl = Duration.ofMinutes(5);
@@ -94,6 +96,10 @@ public class BrokerageIntegrationProperties {
 	public void setBrapiBaseUrl(String brapiBaseUrl) { this.brapiBaseUrl = brapiBaseUrl; }
 	public String getBrapiToken() { return brapiToken; }
 	public void setBrapiToken(String brapiToken) { this.brapiToken = brapiToken; }
+	public String getTwelveDataBaseUrl() { return twelveDataBaseUrl; }
+	public void setTwelveDataBaseUrl(String twelveDataBaseUrl) { this.twelveDataBaseUrl = twelveDataBaseUrl; }
+	public String getTwelveDataApiKey() { return twelveDataApiKey; }
+	public void setTwelveDataApiKey(String twelveDataApiKey) { this.twelveDataApiKey = twelveDataApiKey; }
 	public String getAlphaVantageBaseUrl() { return alphaVantageBaseUrl; }
 	public void setAlphaVantageBaseUrl(String alphaVantageBaseUrl) { this.alphaVantageBaseUrl = alphaVantageBaseUrl; }
 	public String getAlphaVantageApiKey() { return alphaVantageApiKey; }

@@ -13,7 +13,7 @@ O sistema é uma API RESTful em Java com Spring Boot para gestão de investiment
 - **RF03 (Vínculo com Corretora):** A criação de uma carteira exige a vinculação a uma única corretora.
 - **RF04 (Cadastro de Corretora):** Realizado a partir do CNPJ. O sistema consulta a **Brasil API** para dados cadastrais, a **ViaCEP** para o endereço e valida a instituição no **Portal de Dados Abertos (CVM)**.
 - **RF05 (Dashboard de BI):** Ao abrir uma carteira, o sistema exibe indicadores financeiros atualizados (consultando as APIs de cotação naquele momento) e gráficos de análise.
-- **RF06 (Pesquisa de Ativos):** A tela da carteira possui uma barra de pesquisa com filtro de mercado (BR ou EUA) para localizar ativos via **Brapi** ou **AlphaVantage**.
+- **RF06 (Pesquisa de Ativos):** A tela da carteira possui uma barra de pesquisa com filtro de mercado (BR ou EUA) para localizar ativos via **Brapi** ou **Twelve Data**.
 - **RF07 (Lançamentos / Log):** Ao selecionar um ativo, o usuário registra um Lançamento de Compra ou Venda, informando data, quantidade, preço e custos.
 - **RF08 (Histórico):** Todos os lançamentos formam um log histórico consultável.
 
@@ -41,7 +41,8 @@ O sistema é uma API RESTful em Java com Spring Boot para gestão de investiment
   - CEP: `ViaCEP`
   - CVM: `Portal de Dados Abertos`
   - Ações Brasileiras: `Brapi`
-  - Ações Americanas: `AlphaVantage`
+  - Ações Americanas (pesquisa, cotação e histórico): `Twelve Data`
+  - Dividendos de Ações Americanas: `Alpha Vantage`
 - **Padrões de Projeto:**
   - **Strategy:** Isolar integrações de APIs externas (ex: `StockQuoteStrategy`), permitindo alternar ou escalar serviços de cotação.
   - **State:** Gerenciar o ciclo de vida dos Lançamentos (`PENDENTE` -> `EFETIVADO` -> `CANCELADO`).

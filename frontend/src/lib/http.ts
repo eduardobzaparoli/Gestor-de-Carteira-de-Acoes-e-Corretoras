@@ -136,6 +136,10 @@ export const apiMessage = (error: unknown) => {
     CANNOT_DEACTIVATE_SELF: "Você não pode desativar sua própria conta.",
     ALPHAVANTAGE_RATE_LIMITED:
       "O limite do provedor de mercado foi atingido. Tente novamente mais tarde.",
+    TWELVE_DATA_RATE_LIMITED:
+      "O limite do provedor de mercado foi atingido. Tente novamente mais tarde.",
+    TWELVE_DATA_PROVIDER_UNAVAILABLE:
+      "Os dados do mercado americano estão indisponíveis no momento. Tente novamente.",
     EXCHANGE_RATE_UNAVAILABLE:
       "O câmbio necessário está indisponível no momento.",
     CNPJ_NOT_FOUND: "O CNPJ informado não foi encontrado.",

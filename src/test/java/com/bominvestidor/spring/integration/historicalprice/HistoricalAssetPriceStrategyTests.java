@@ -54,19 +54,20 @@ class HistoricalAssetPriceStrategyTests {
 	}
 
 	@Test
-	void alphaParsesAndOrdersDailyUnadjustedClosesWithinTheRequestedWindow() {
-		RestClient.Builder builder = RestClient.builder().baseUrl("http://alpha.test");
+	void twelveDataParsesAndOrdersDailyUnadjustedClosesWithinTheRequestedWindow() {
+		RestClient.Builder builder = RestClient.builder().baseUrl("http://twelve.test");
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-		server.expect(requestTo(containsString("function=TIME_SERIES_DAILY")))
+		server.expect(requestTo(containsString("/time_series?symbol=msft&interval=1day&start_date=2026-08-27&end_date=2026-08-31&adjust=none")))
 				.andRespond(withSuccess("""
-					{"Time Series (Daily)":{
-					  "2026-08-31":{"4. close":"510.20","5. adjusted close":"999.00"},
-					  "2026-08-27":{"4. close":"500.10","5. adjusted close":"888.00"},
-					  "2026-08-26":{"4. close":"490.00"}
-					}}
+					{"values":[
+					  {"datetime":"2026-08-31","close":"510.20"},
+					  {"datetime":"2026-08-27","close":"500.10"},
+					  {"datetime":"2026-08-26","close":"490.00"},
+					  {"datetime":"invalid","close":"999.00"}
+					]}
 					""", MediaType.APPLICATION_JSON));
 
-		var series = new AlphaVantageHistoricalAssetPriceStrategy(builder.build(), alphaProperties("key"))
+		var series = new TwelveDataHistoricalAssetPriceStrategy(builder.build(), twelveProperties("key"))
 				.findSeries("msft", "usd", START, END);
 
 		assertEquals(java.util.List.of(START, END), series.prices().keySet().stream().toList());
@@ -85,32 +86,32 @@ class HistoricalAssetPriceStrategyTests {
 		assertEquals("BRAPI_RATE_LIMITED", brapiLimit.getCode());
 		brapiLimitedServer.verify();
 
-		RestClient.Builder alphaLimitedBuilder = RestClient.builder().baseUrl("http://alpha.test");
-		MockRestServiceServer alphaLimitedServer = MockRestServiceServer.bindTo(alphaLimitedBuilder).build();
-		alphaLimitedServer.expect(requestTo(containsString("function=TIME_SERIES_DAILY")))
-				.andRespond(withSuccess("{\"Information\":\"standard API rate limit of 25 requests per day\"}", MediaType.APPLICATION_JSON));
-		AssetProviderUnavailableException alphaLimit = assertThrows(AssetProviderUnavailableException.class,
-				() -> new AlphaVantageHistoricalAssetPriceStrategy(alphaLimitedBuilder.build(), alphaProperties("key"))
+		RestClient.Builder twelveLimitedBuilder = RestClient.builder().baseUrl("http://twelve.test");
+		MockRestServiceServer twelveLimitedServer = MockRestServiceServer.bindTo(twelveLimitedBuilder).build();
+		twelveLimitedServer.expect(requestTo(containsString("/time_series")))
+				.andRespond(withSuccess("{\"status\":\"error\",\"code\":429,\"message\":\"Run out of API credits\"}", MediaType.APPLICATION_JSON));
+		AssetProviderUnavailableException twelveLimit = assertThrows(AssetProviderUnavailableException.class,
+				() -> new TwelveDataHistoricalAssetPriceStrategy(twelveLimitedBuilder.build(), twelveProperties("key"))
 						.findSeries("MSFT", "USD", START, END));
-		assertEquals("ALPHAVANTAGE_RATE_LIMITED", alphaLimit.getCode());
-		assertEquals("Alpha Vantage rate limit reached", alphaLimit.getMessage());
-		alphaLimitedServer.verify();
+		assertEquals("TWELVE_DATA_RATE_LIMITED", twelveLimit.getCode());
+		assertEquals("Twelve Data rate limit reached", twelveLimit.getMessage());
+		twelveLimitedServer.verify();
 
-		RestClient.Builder alphaPlanBuilder = RestClient.builder().baseUrl("http://alpha.test");
-		MockRestServiceServer alphaPlanServer = MockRestServiceServer.bindTo(alphaPlanBuilder).build();
-		alphaPlanServer.expect(requestTo(containsString("function=TIME_SERIES_DAILY")))
-				.andRespond(withSuccess("{\"Information\":\"This endpoint is not available for your subscription\"}", MediaType.APPLICATION_JSON));
-		AssetProviderUnavailableException alphaPlan = assertThrows(AssetProviderUnavailableException.class,
-				() -> new AlphaVantageHistoricalAssetPriceStrategy(alphaPlanBuilder.build(), alphaProperties("key"))
+		RestClient.Builder twelvePlanBuilder = RestClient.builder().baseUrl("http://twelve.test");
+		MockRestServiceServer twelvePlanServer = MockRestServiceServer.bindTo(twelvePlanBuilder).build();
+		twelvePlanServer.expect(requestTo(containsString("/time_series")))
+				.andRespond(withSuccess("{\"status\":\"error\",\"code\":401,\"message\":\"API key is invalid\"}", MediaType.APPLICATION_JSON));
+		AssetProviderUnavailableException twelvePlan = assertThrows(AssetProviderUnavailableException.class,
+				() -> new TwelveDataHistoricalAssetPriceStrategy(twelvePlanBuilder.build(), twelveProperties("key"))
 						.findSeries("MSFT", "USD", START, END));
-		assertEquals("ALPHAVANTAGE_PROVIDER_UNAVAILABLE", alphaPlan.getCode());
-		alphaPlanServer.verify();
+		assertEquals("TWELVE_DATA_PROVIDER_UNAVAILABLE", twelvePlan.getCode());
+		twelvePlanServer.verify();
 
 		RestClient timeout = RestClient.builder().requestFactory((uri, method) -> { throw new ResourceAccessException("internal timeout details"); }).build();
 		AssetProviderUnavailableException transport = assertThrows(AssetProviderUnavailableException.class,
-				() -> new AlphaVantageHistoricalAssetPriceStrategy(timeout, alphaProperties("key"))
+				() -> new TwelveDataHistoricalAssetPriceStrategy(timeout, twelveProperties("key"))
 						.findSeries("MSFT", "USD", START, END));
-		assertEquals("ALPHAVANTAGE_PROVIDER_UNAVAILABLE", transport.getCode());
+		assertEquals("TWELVE_DATA_PROVIDER_UNAVAILABLE", transport.getCode());
 	}
 
 	@Test
@@ -120,8 +121,8 @@ class HistoricalAssetPriceStrategyTests {
 		}).build();
 		assertEquals("BRAPI_PROVIDER_UNAVAILABLE", assertThrows(AssetProviderUnavailableException.class,
 				() -> new BrapiHistoricalAssetPriceStrategy(unused, brapiProperties(" ")).findSeries("PETR4", "BRL", START, END)).getCode());
-		assertEquals("ALPHAVANTAGE_PROVIDER_UNAVAILABLE", assertThrows(AssetProviderUnavailableException.class,
-				() -> new AlphaVantageHistoricalAssetPriceStrategy(unused, alphaProperties("")).findSeries("MSFT", "USD", START, END)).getCode());
+		assertEquals("TWELVE_DATA_PROVIDER_UNAVAILABLE", assertThrows(AssetProviderUnavailableException.class,
+				() -> new TwelveDataHistoricalAssetPriceStrategy(unused, twelveProperties("")).findSeries("MSFT", "USD", START, END)).getCode());
 
 		RestClient.Builder emptyBuilder = RestClient.builder().baseUrl("http://brapi.test");
 		MockRestServiceServer emptyServer = MockRestServiceServer.bindTo(emptyBuilder).build();
@@ -132,11 +133,20 @@ class HistoricalAssetPriceStrategyTests {
 						.findSeries("PETR4", "BRL", START, END));
 		emptyServer.verify();
 
-		RestClient.Builder failedBuilder = RestClient.builder().baseUrl("http://alpha.test");
+		RestClient.Builder twelveEmptyBuilder = RestClient.builder().baseUrl("http://twelve.test");
+		MockRestServiceServer twelveEmptyServer = MockRestServiceServer.bindTo(twelveEmptyBuilder).build();
+		twelveEmptyServer.expect(requestTo(containsString("/time_series")))
+				.andRespond(withSuccess("{\"values\":[]}", MediaType.APPLICATION_JSON));
+		assertThrows(HistoricalPriceUnavailableException.class,
+				() -> new TwelveDataHistoricalAssetPriceStrategy(twelveEmptyBuilder.build(), twelveProperties("key"))
+						.findSeries("MSFT", "USD", START, END));
+		twelveEmptyServer.verify();
+
+		RestClient.Builder failedBuilder = RestClient.builder().baseUrl("http://twelve.test");
 		MockRestServiceServer failedServer = MockRestServiceServer.bindTo(failedBuilder).build();
-		failedServer.expect(requestTo(containsString("function=TIME_SERIES_DAILY"))).andRespond(withServerError());
-		assertEquals("ALPHAVANTAGE_PROVIDER_UNAVAILABLE", assertThrows(AssetProviderUnavailableException.class,
-				() -> new AlphaVantageHistoricalAssetPriceStrategy(failedBuilder.build(), alphaProperties("key"))
+		failedServer.expect(requestTo(containsString("/time_series"))).andRespond(withServerError());
+		assertEquals("TWELVE_DATA_PROVIDER_UNAVAILABLE", assertThrows(AssetProviderUnavailableException.class,
+				() -> new TwelveDataHistoricalAssetPriceStrategy(failedBuilder.build(), twelveProperties("key"))
 						.findSeries("MSFT", "USD", START, END)).getCode());
 		failedServer.verify();
 	}
@@ -147,9 +157,9 @@ class HistoricalAssetPriceStrategyTests {
 		return properties;
 	}
 
-	private BrokerageIntegrationProperties alphaProperties(String key) {
+	private BrokerageIntegrationProperties twelveProperties(String key) {
 		BrokerageIntegrationProperties properties = new BrokerageIntegrationProperties();
-		properties.setAlphaVantageApiKey(key);
+		properties.setTwelveDataApiKey(key);
 		return properties;
 	}
 }
