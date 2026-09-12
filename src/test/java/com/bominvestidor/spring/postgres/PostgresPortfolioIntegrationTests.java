@@ -34,6 +34,7 @@ import com.bominvestidor.spring.domain.user.UserRole;
 import com.bominvestidor.spring.dto.auth.RegisterRequest;
 import com.bominvestidor.spring.dto.portfolio.PortfolioCreateRequest;
 import com.bominvestidor.spring.dto.transaction.PortfolioTransactionCreateRequest;
+import com.bominvestidor.spring.dto.asset.RegisteredAssetCreateRequest;
 import com.bominvestidor.spring.dto.income.ManualIncomeEventCreateRequest;
 import com.bominvestidor.spring.domain.income.IncomeEventType;
 import com.bominvestidor.spring.domain.income.IncomeEventStatus;
@@ -51,7 +52,8 @@ import com.bominvestidor.spring.repository.portfolio.PortfolioRepository;
 import com.bominvestidor.spring.repository.user.UserRepository;
 import com.bominvestidor.spring.service.auth.AuthService;
 import com.bominvestidor.spring.service.asset.AssetSearchService;
-import com.bominvestidor.spring.service.asset.AssetSelectionCache;
+import com.bominvestidor.spring.service.asset.RegisteredAssetService;
+import com.bominvestidor.spring.repository.asset.RegisteredAssetRepository;
 import com.bominvestidor.spring.service.portfolio.PortfolioService;
 import com.bominvestidor.spring.service.position.PortfolioPositionService;
 import com.bominvestidor.spring.service.valuation.PortfolioMarketValuationService;
@@ -75,7 +77,8 @@ class PostgresPortfolioIntegrationTests {
 	@Autowired private BrokerageRepository brokerageRepository;
 	@Autowired private UserRepository userRepository;
 	@Autowired private AssetSearchService assetSearchService;
-	@Autowired private AssetSelectionCache assetSelections;
+	@Autowired private RegisteredAssetService registeredAssetService;
+	@Autowired private RegisteredAssetRepository registeredAssetRepository;
 	@Autowired private JdbcTemplate jdbcTemplate;
 	@Autowired private PortfolioTransactionService transactionService;
 	@Autowired private PortfolioPositionService positionService;
@@ -104,14 +107,15 @@ class PostgresPortfolioIntegrationTests {
 
 			List<String> assetTablesBefore = assetPersistenceTables();
 			List<Long> persistedRowsBefore = persistedRows();
-			var assets = assetSearchService.search(userId, portfolioId, "BR", "STOCK", "PETR");
+			var assets = assetSearchService.search(userId, "BR", "STOCK", "PETR");
 			assertEquals(1, assets.size());
 			assertEquals("PETR4", assets.get(0).ticker());
 			assertEquals(new BigDecimal("35.10"), assets.get(0).price());
 			assertEquals(assetTablesBefore, assetPersistenceTables());
 			assertEquals(persistedRowsBefore, persistedRows());
 
-			transactionService.create(userId, portfolioId, new PortfolioTransactionCreateRequest(assets.get(0).selectionId(), TransactionType.BUY, LocalDate.now().minusDays(1), new BigDecimal("2"),
+			var registered = registeredAssetService.register(userId, new RegisteredAssetCreateRequest(assets.get(0).selectionId()));
+			transactionService.create(userId, portfolioId, new PortfolioTransactionCreateRequest(registered.id(), TransactionType.BUY, LocalDate.now().minusDays(1), new BigDecimal("2"),
 					new BigDecimal("35.10"), null));
 			assertEquals(1, jdbcTemplate.queryForObject(
 					"select count(*) from portfolio_transactions where portfolio_id = ?", Integer.class, portfolioId));
@@ -165,6 +169,7 @@ class PostgresPortfolioIntegrationTests {
 				brokerageRepository.deleteById(brokerage.getId());
 			}
 			if (user != null) {
+				registeredAssetRepository.deleteAll();
 				userRepository.deleteById(user.getId());
 			}
 		}

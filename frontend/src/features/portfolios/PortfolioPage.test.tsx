@@ -103,7 +103,7 @@ function baseHandlers() {
     http.get("*/api/portfolios/p1/income-events/summary", () =>
       HttpResponse.json(incomeSummary),
     ),
-    http.get("*/api/portfolios/p1/assets", () => HttpResponse.json([])),
+    http.get("*/api/assets", () => HttpResponse.json([])),
   ];
 }
 
@@ -130,18 +130,31 @@ test("não exibe atribuição americana quando a carteira contém apenas ativos 
 test("pesquisa um ativo e registra uma compra", async () => {
   let body: Record<string, string> | undefined;
   server.use(
-    http.get("*/api/portfolios/p1/assets", () =>
+    http.get("*/api/assets", () =>
       HttpResponse.json([
         {
-          selectionId: "s1",
+          id: "a1",
           ticker: "PETR4",
           name: "Petrobras",
           market: "BR",
           assetType: "STOCK",
           currency: "BRL",
-          price: 32.1,
+          lastQuote: 31.9,
+          quotedAt: "2026-09-07T09:00:00Z",
+          createdAt: "2026-09-07T09:00:00Z",
+          updatedAt: "2026-09-07T09:00:00Z",
         },
       ]),
+    ),
+    http.get("*/api/assets/a1/quote", () =>
+      HttpResponse.json({
+        assetId: "a1",
+        ticker: "PETR4",
+        market: "BR",
+        currency: "BRL",
+        price: 32.1,
+        quotedAt: "2026-09-07T10:00:00Z",
+      }),
     ),
     http.post("*/api/portfolios/p1/transactions", async ({ request }) => {
       body = (await request.json()) as Record<string, string>;
@@ -195,7 +208,7 @@ test("pesquisa um ativo e registra uma compra", async () => {
 
   await waitFor(() => expect(body).toBeDefined());
   expect(body).toMatchObject({
-    assetSelectionId: "s1",
+    registeredAssetId: "a1",
     type: "BUY",
     quantity: "2",
     unitPrice: "32.10",
@@ -222,6 +235,62 @@ test("limpa o formulário ao reabrir um novo lançamento", async () => {
   expect((screen.getByLabelText("Data") as HTMLInputElement).value).toMatch(
     /^\d{2}\/\d{2}\/\d{4}$/,
   );
+});
+
+test("bloqueia o lançamento quando a cotação fresca falha", async () => {
+  server.use(
+    http.get("*/api/assets", () =>
+      HttpResponse.json([
+        {
+          id: "a1",
+          ticker: "PETR4",
+          name: "Petrobras",
+          market: "BR",
+          assetType: "STOCK",
+          currency: "BRL",
+          lastQuote: 31.9,
+          quotedAt: "2026-09-07T09:00:00Z",
+          createdAt: "2026-09-07T09:00:00Z",
+          updatedAt: "2026-09-07T09:00:00Z",
+        },
+      ]),
+    ),
+    http.get("*/api/assets/a1/quote", () =>
+      HttpResponse.json(
+        {
+          status: 503,
+          code: "ASSET_QUOTE_UNAVAILABLE",
+          message: "Asset quote is unavailable",
+          fieldErrors: [],
+        },
+        { status: 503 },
+      ),
+    ),
+    ...baseHandlers(),
+  );
+  renderPortfolio();
+
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Novo lançamento" }),
+  );
+  await userEvent.type(screen.getByLabelText("Pesquisar ativo"), "PETR");
+  const assetButton = screen
+    .getAllByRole("button")
+    .find(
+      (button) =>
+        button.classList.contains("asset-result") &&
+        button.textContent?.includes("PETR4"),
+    )!;
+  await userEvent.click(assetButton);
+
+  expect(
+    await screen.findByText(
+      "Não foi possível atualizar a cotação. Tente novamente mais tarde.",
+    ),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "Registrar lançamento" }),
+  ).toBeDisabled();
 });
 
 test("edita lançamento pendente com data e moeda em formato brasileiro", async () => {
@@ -325,18 +394,31 @@ test("exibe e edita um ativo americano em reais sem alterar a moeda nativa da AP
         referenceDate: "2026-09-08",
       }),
     ),
-    http.get("*/api/portfolios/p1/assets", () =>
+    http.get("*/api/assets", () =>
       HttpResponse.json([
         {
-          selectionId: "us1",
+          id: "us1",
           ticker: "AAPL",
           name: "Apple Inc.",
           market: "US",
           assetType: "STOCK",
           currency: "USD",
-          price: 316.51,
+          lastQuote: 316.51,
+          quotedAt: "2026-09-07T09:00:00Z",
+          createdAt: "2026-09-07T09:00:00Z",
+          updatedAt: "2026-09-07T09:00:00Z",
         },
       ]),
+    ),
+    http.get("*/api/assets/us1/quote", () =>
+      HttpResponse.json({
+        assetId: "us1",
+        ticker: "AAPL",
+        market: "US",
+        currency: "USD",
+        price: 316.51,
+        quotedAt: "2026-09-07T10:00:00Z",
+      }),
     ),
     http.post("*/api/portfolios/p1/transactions", async ({ request }) => {
       body = (await request.json()) as Record<string, string>;
@@ -353,7 +435,9 @@ test("exibe e edita um ativo americano em reais sem alterar a moeda nativa da AP
   );
   await userEvent.selectOptions(screen.getByLabelText("Mercado"), "US");
   await userEvent.type(screen.getByLabelText("Pesquisar ativo"), "AAPL");
-  expect(await screen.findByRole("link", { name: "Parqet" })).toBeVisible();
+  expect(
+    screen.queryByText(/Logos americanos fornecidos por/i),
+  ).not.toBeInTheDocument();
   const asset = await screen.findByRole("button", {
     name: /AAPL.*R\$\s*1\.620,53/i,
   });

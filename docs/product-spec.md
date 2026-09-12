@@ -1,7 +1,7 @@
 # Especificação Técnica (PRD): Gestor de Carteiras de Ações e Corretoras
 
 ## 1. Visão Geral do Produto
-O sistema é uma API RESTful em Java com Spring Boot para gestão de investimentos. A aplicação simula um software de gestão de ações com uma interface orientada a Business Intelligence (BI). Permite o cadastro de carteiras, corretoras e ativos (brasileiros e americanos), integrando-se a APIs públicas para validação e obtenção de dados em tempo real. O sistema possui um histórico de lançamentos (log de transações) e indicadores financeiros calculados dinamicamente.
+O sistema é uma API RESTful em Java com Spring Boot para gestão de investimentos. A aplicação simula um software de gestão de ações com uma interface orientada a Business Intelligence (BI). Permite o cadastro de carteiras, corretoras e de um catálogo privado de ativos brasileiros e americanos por investidor, integrando-se a APIs públicas para validação e obtenção de dados em tempo real. O sistema possui um histórico de lançamentos (log de transações) e indicadores financeiros calculados dinamicamente.
 
 ## 2. Atores do Sistema
 - **Investidor (Usuário Comum):** Acessa a aplicação via login, gerencia suas próprias corretoras, cria carteiras, realiza lançamentos (compra/venda) e visualiza o dashboard de BI. Seus dados são isolados.
@@ -13,8 +13,8 @@ O sistema é uma API RESTful em Java com Spring Boot para gestão de investiment
 - **RF03 (Vínculo com Corretora):** A criação de uma carteira exige a vinculação a uma única corretora.
 - **RF04 (Cadastro de Corretora):** Realizado a partir do CNPJ. O sistema consulta a **Brasil API** para dados cadastrais, a **ViaCEP** para o endereço e valida a instituição no **Portal de Dados Abertos (CVM)**.
 - **RF05 (Dashboard de BI):** Ao abrir uma carteira, o sistema exibe indicadores financeiros atualizados (consultando as APIs de cotação naquele momento) e gráficos de análise.
-- **RF06 (Pesquisa de Ativos):** A tela da carteira possui uma barra de pesquisa com filtro de mercado (BR ou EUA) para localizar ativos via **Brapi** ou **Twelve Data**.
-- **RF07 (Lançamentos / Log):** Ao selecionar um ativo, o usuário registra um Lançamento de Compra ou Venda, informando data, quantidade, preço e custos.
+- **RF06 (Gestão de Ativos):** O investidor possui uma tela própria para pesquisar e cadastrar ações ou ETFs brasileiros e americanos via **Brapi** ou **Twelve Data**. O catálogo é privado, reutilizável em todas as suas carteiras e permite listar, filtrar por mercado, atualizar individualmente a cotação e excluir um ativo ou todo o catálogo quando não houver saldo positivo correspondente em nenhuma carteira. Cada cadastro mantém a última cotação conhecida e a data e hora da consulta; a interface converte cotações americanas para reais, preservando a moeda nativa no contrato da API.
+- **RF07 (Lançamentos / Log):** Ao criar um lançamento, o usuário seleciona exclusivamente um ativo previamente cadastrado em seu catálogo. O sistema consulta novamente a cotação corrente, preenche o preço unitário e permite ajustá-lo para representar o preço efetivamente negociado; o usuário também informa data, quantidade e custos. A API recebe `registeredAssetId` como referência do ativo, em substituição à seleção temporária da pesquisa externa.
 - **RF08 (Histórico):** Todos os lançamentos formam um log histórico consultável.
 
 ## 4. Regras de Negócio e Cálculos
@@ -28,6 +28,9 @@ O sistema é uma API RESTful em Java com Spring Boot para gestão de investiment
   - **Patrimônio Total:** (Quantidade Atual de todos os ativos) * (Preço Atual da API).
   - **Lucro Total (Ganho de Capital):** Patrimônio Total - Valor Investido.
   - **Rentabilidade (%):** (Lucro Total / Valor Investido) * 100.
+- **RN07 (Isolamento e Unicidade do Catálogo):** Cada ativo cadastrado pertence ao investidor autenticado e pode ser utilizado em qualquer carteira desse mesmo investidor. Não pode existir mais de um cadastro do mesmo ticker e mercado para o mesmo investidor, inclusive sob requisições concorrentes.
+- **RN08 (Cotações do Catálogo e do Lançamento):** O cadastro e a atualização explícita de um ativo consultam o provedor e persistem uma cotação positiva com o instante definido pelo servidor. A seleção do ativo para um lançamento exige uma nova consulta, mas essa cotação transitória não altera o valor histórico exibido no catálogo. Falhas de atualização preservam a última cotação válida.
+- **RN09 (Integridade Histórica e Exclusão do Catálogo):** Cada lançamento mantém um retrato independente da identidade do ativo. Lançamentos anteriores ao catálogo continuam válidos e não exigem vínculo retroativo. Um ativo cadastrado só pode ser excluído quando sua posição for nula em todas as carteiras do investidor. A exclusão total valida todos os ativos antes de remover qualquer registro e é atômica; lançamentos históricos permanecem preservados.
 
 ## 5. Visualização de Dados (Gráficos)
 - **Gráfico de Composição (Rosca/Donut):** Exibe o percentual de cada ativo em relação ao total da carteira.

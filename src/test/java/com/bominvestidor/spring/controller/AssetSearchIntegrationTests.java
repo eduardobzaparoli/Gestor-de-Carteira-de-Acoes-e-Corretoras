@@ -4,6 +4,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static com.bominvestidor.spring.support.RegisteredAssetTestData.registeredAsset;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -36,10 +37,10 @@ import com.bominvestidor.spring.exception.AssetProviderUnavailableException;
 import com.bominvestidor.spring.integration.asset.*;
 import com.bominvestidor.spring.integration.exchange.ExchangeRateStrategy;
 import com.bominvestidor.spring.repository.brokerage.BrokerageRepository;
+import com.bominvestidor.spring.repository.asset.RegisteredAssetRepository;
 import com.bominvestidor.spring.repository.portfolio.PortfolioRepository;
 import com.bominvestidor.spring.repository.user.UserRepository;
 import com.bominvestidor.spring.service.auth.AuthService;
-import com.bominvestidor.spring.service.asset.AssetSelectionCache;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -49,7 +50,7 @@ class AssetSearchIntegrationTests {
 	private static final AtomicBoolean EXCHANGE_AVAILABLE = new AtomicBoolean(true);
 	private static final AtomicBoolean HISTORICAL_EXCHANGE_AVAILABLE = new AtomicBoolean(true);
 	@Autowired MockMvc mockMvc; @Autowired AuthService authService; @Autowired UserRepository users;
-	@Autowired BrokerageRepository brokerages; @Autowired PortfolioRepository portfolios; @Autowired AssetSelectionCache selections;
+	@Autowired BrokerageRepository brokerages; @Autowired PortfolioRepository portfolios; @Autowired RegisteredAssetRepository registeredAssets;
 
 	@Test void returnsTheRequestedExchangeRateOnlyForThePortfolioOwner() throws Exception {
 		Session session = session(); UUID portfolioId = portfolio(session.user()).getId();
@@ -68,38 +69,38 @@ class AssetSearchIntegrationTests {
 
 	@Test void returnsPublicQuotedResultsAndProtectsTheRoute() throws Exception {
 		Session first = session(); UUID portfolioId = portfolio(first.user()).getId();
-		mockMvc.perform(get("/api/portfolios/{id}/assets", portfolioId).param("market", "BR").param("assetType", "STOCK").param("query", "PETR").header("Authorization", "Bearer " + first.token()))
+		mockMvc.perform(get("/api/assets/search").param("market", "BR").param("assetType", "STOCK").param("query", "PETR").header("Authorization", "Bearer " + first.token()))
 			.andExpect(status().isOk()).andExpect(jsonPath("$[0].selectionId").isNotEmpty())
 			.andExpect(jsonPath("$[0].ticker").value("PETR4")).andExpect(jsonPath("$[0].price").value(35.10));
-		mockMvc.perform(get("/api/portfolios/{id}/assets", portfolioId).param("market", "BR").param("assetType", "ETF").param("query", "BOVA").header("Authorization", "Bearer " + first.token()))
+		mockMvc.perform(get("/api/assets/search").param("market", "BR").param("assetType", "ETF").param("query", "BOVA").header("Authorization", "Bearer " + first.token()))
 			.andExpect(status().isOk()).andExpect(jsonPath("$[0].assetType").value("ETF"));
-		mockMvc.perform(get("/api/portfolios/{id}/assets", portfolioId).param("market", "US").param("assetType", "STOCK").param("query", "MSFT").header("Authorization", "Bearer " + first.token()))
+		mockMvc.perform(get("/api/assets/search").param("market", "US").param("assetType", "STOCK").param("query", "MSFT").header("Authorization", "Bearer " + first.token()))
 			.andExpect(status().isOk()).andExpect(jsonPath("$[0].assetType").value("STOCK"));
-		mockMvc.perform(get("/api/portfolios/{id}/assets", portfolioId).param("market", "US").param("assetType", "ETF").param("query", "SPY").header("Authorization", "Bearer " + first.token()))
+		mockMvc.perform(get("/api/assets/search").param("market", "US").param("assetType", "ETF").param("query", "SPY").header("Authorization", "Bearer " + first.token()))
 			.andExpect(status().isOk()).andExpect(jsonPath("$[0].assetType").value("ETF"));
-		mockMvc.perform(get("/api/portfolios/{id}/assets", portfolioId).param("market", "BR").param("assetType", "STOCK").param("query", "P"))
+		mockMvc.perform(get("/api/assets/search").param("market", "BR").param("assetType", "STOCK").param("query", "P"))
 			.andExpect(status().isUnauthorized());
 		Jwt admin = Jwt.withTokenValue("admin").subject(UUID.randomUUID().toString()).claim("role", UserRole.ADMIN.name()).header("alg", "none").build();
-		mockMvc.perform(get("/api/portfolios/{id}/assets", portfolioId).param("market", "BR").param("assetType", "STOCK").param("query", "PETR").with(jwt().jwt(admin)))
+		mockMvc.perform(get("/api/assets/search").param("market", "BR").param("assetType", "STOCK").param("query", "PETR").with(jwt().jwt(admin)))
 			.andExpect(status().isForbidden());
 		Session other = session();
-		mockMvc.perform(get("/api/portfolios/{id}/assets", portfolioId).param("market", "BR").param("assetType", "STOCK").param("query", "PETR").header("Authorization", "Bearer " + other.token()))
-			.andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("PORTFOLIO_NOT_FOUND"));
+		mockMvc.perform(get("/api/assets/search").param("market", "BR").param("assetType", "STOCK").param("query", "PETR").header("Authorization", "Bearer " + other.token()))
+			.andExpect(status().isOk());
 	}
 
 	@Test void validatesRequiredParametersAndExposesProviderFailuresWithoutInternalDetails() throws Exception {
 		Session session = session(); UUID portfolioId = portfolio(session.user()).getId();
-		mockMvc.perform(get("/api/portfolios/{id}/assets", portfolioId).param("market", "BR").param("assetType", "STOCK").param("query", "P").header("Authorization", "Bearer " + session.token()))
+		mockMvc.perform(get("/api/assets/search").param("market", "BR").param("assetType", "STOCK").param("query", "P").header("Authorization", "Bearer " + session.token()))
 			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR")).andExpect(jsonPath("$.fieldErrors[0].field").value("query"));
-		mockMvc.perform(get("/api/portfolios/{id}/assets", portfolioId).param("market", "BR").param("assetType", "STOCK").header("Authorization", "Bearer " + session.token()))
+		mockMvc.perform(get("/api/assets/search").param("market", "BR").param("assetType", "STOCK").header("Authorization", "Bearer " + session.token()))
 			.andExpect(status().isBadRequest());
-		mockMvc.perform(get("/api/portfolios/{id}/assets", portfolioId).param("market", "INVALID").param("assetType", "STOCK").param("query", "PETR").header("Authorization", "Bearer " + session.token()))
+		mockMvc.perform(get("/api/assets/search").param("market", "INVALID").param("assetType", "STOCK").param("query", "PETR").header("Authorization", "Bearer " + session.token()))
 			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.fieldErrors[0].field").value("market"));
-		mockMvc.perform(get("/api/portfolios/{id}/assets", portfolioId).param("market", "BR").param("assetType", "STOCK").param("query", "EMPTY").header("Authorization", "Bearer " + session.token()))
+		mockMvc.perform(get("/api/assets/search").param("market", "BR").param("assetType", "STOCK").param("query", "EMPTY").header("Authorization", "Bearer " + session.token()))
 			.andExpect(status().isOk()).andExpect(jsonPath("$").isEmpty());
-		mockMvc.perform(get("/api/portfolios/{id}/assets", portfolioId).param("market", "BR").param("assetType", "STOCK").param("query", "FAIL").header("Authorization", "Bearer " + session.token()))
+		mockMvc.perform(get("/api/assets/search").param("market", "BR").param("assetType", "STOCK").param("query", "FAIL").header("Authorization", "Bearer " + session.token()))
 			.andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.code").value("BRAPI_PROVIDER_UNAVAILABLE"));
-		mockMvc.perform(get("/api/portfolios/{id}/assets", portfolioId).param("market", "US").param("assetType", "STOCK").param("query", "FAIL").header("Authorization", "Bearer " + session.token()))
+		mockMvc.perform(get("/api/assets/search").param("market", "US").param("assetType", "STOCK").param("query", "FAIL").header("Authorization", "Bearer " + session.token()))
 			.andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.code").value("TWELVE_DATA_RATE_LIMITED"));
 	}
 
@@ -158,10 +159,10 @@ class AssetSearchIntegrationTests {
 	}
 	private void transaction(Session session, UUID portfolioId, String ticker, String market, String currency, String quantity, String price,
 			LocalDate transactionDate) throws Exception {
-		UUID selectionId = selections.store(session.user().getId(), portfolioId, new SelectedAsset(ticker, ticker,
-				AssetMarket.valueOf(market), AssetType.STOCK, currency));
-		String body = "{\"assetSelectionId\":\"%s\",\"type\":\"BUY\",\"transactionDate\":\"%s\",\"quantity\":%s,\"unitPrice\":%s,\"costs\":0}"
-				.formatted(selectionId, transactionDate, quantity, price);
+		UUID assetId = registeredAsset(registeredAssets, session.user(), ticker, ticker,
+				AssetMarket.valueOf(market), AssetType.STOCK, currency);
+		String body = "{\"registeredAssetId\":\"%s\",\"type\":\"BUY\",\"transactionDate\":\"%s\",\"quantity\":%s,\"unitPrice\":%s,\"costs\":0}"
+				.formatted(assetId, transactionDate, quantity, price);
 		mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/portfolios/{id}/transactions", portfolioId)
 				.header("Authorization", "Bearer " + session.token()).contentType("application/json").content(body)).andExpect(status().isCreated());
 	}

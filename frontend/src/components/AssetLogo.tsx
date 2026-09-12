@@ -12,6 +12,19 @@ export const assetLogoUrl = (ticker: string, market: AssetLogoMarket) => {
   return null;
 };
 
+const assetLogoSources = (ticker: string, market: AssetLogoMarket) => {
+  const primary = assetLogoUrl(ticker, market);
+  if (!primary) return [];
+  if (market === "US") {
+    return [
+      primary,
+      primary.replace("format=webp", "format=png"),
+      primary.replace("format=webp", "format=svg"),
+    ];
+  }
+  return [primary, `${primary}?retry=1`, `${primary}?retry=2`];
+};
+
 export function AssetLogo({
   ticker,
   market,
@@ -19,14 +32,18 @@ export function AssetLogo({
   ticker: string;
   market: AssetLogoMarket;
 }) {
-  const source = assetLogoUrl(ticker, market);
+  const sources = assetLogoSources(ticker, market);
+  const sourceKey = sources.join("|");
+  const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const source = sources[attempt];
 
   useEffect(() => {
+    setAttempt(0);
     setFailed(false);
     setLoaded(false);
-  }, [source]);
+  }, [sourceKey]);
 
   return (
     <span className="asset-logo" data-loaded={loaded && !failed}>
@@ -37,25 +54,17 @@ export function AssetLogo({
         <img
           src={source}
           alt={`Logotipo de ${ticker.toUpperCase()}`}
-          loading="lazy"
+          loading="eager"
           decoding="async"
           referrerPolicy="no-referrer"
           onLoad={() => setLoaded(true)}
-          onError={() => setFailed(true)}
+          onError={() => {
+            setLoaded(false);
+            if (attempt < sources.length - 1) setAttempt(attempt + 1);
+            else setFailed(true);
+          }}
         />
       )}
     </span>
-  );
-}
-
-export function AssetLogoAttribution() {
-  return (
-    <p className="asset-logo-attribution">
-      Logos americanos fornecidos por{" "}
-      <a href="https://parqet.com/api" target="_blank" rel="noreferrer">
-        Parqet
-      </a>
-      .
-    </p>
   );
 }

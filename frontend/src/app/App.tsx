@@ -30,6 +30,11 @@ const BrokeragesPage = lazy(() =>
     default: module.BrokeragesPage,
   })),
 );
+const AssetsPage = lazy(() =>
+  import("../features/assets/AssetsPage").then((module) => ({
+    default: module.AssetsPage,
+  })),
+);
 const PortfoliosPage = lazy(() =>
   import("../features/portfolios/PortfoliosPage").then((module) => ({
     default: module.PortfoliosPage,
@@ -148,6 +153,7 @@ export function App() {
             }
           >
             <Route path="/app/carteiras" element={<PortfoliosPage />} />
+            <Route path="/app/ativos" element={<AssetsPage />} />
             <Route path="/app/corretoras" element={<BrokeragesPage />} />
             <Route
               path="/app/carteiras/:portfolioId"

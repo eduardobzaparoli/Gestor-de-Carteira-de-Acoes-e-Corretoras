@@ -45,7 +45,7 @@ import {
   Skeleton,
   notify,
 } from "../../components/ui";
-import { AssetLogo, AssetLogoAttribution } from "../../components/AssetLogo";
+import { AssetLogo } from "../../components/AssetLogo";
 import { useTheme } from "../../app/ThemeContext";
 import { api, apiMessage } from "../../lib/http";
 import {
@@ -66,7 +66,6 @@ import {
 } from "../../lib/format";
 import type {
   AssetMarket,
-  AssetSearchResult,
   AssetType,
   ExchangeRate,
   EvolutionPoint,
@@ -76,6 +75,8 @@ import type {
   IncomeSummary,
   Portfolio,
   Position,
+  RegisteredAsset,
+  RegisteredAssetQuote,
   Transaction,
   TransactionUpdateInput,
   TransactionStatus,
@@ -177,10 +178,6 @@ export function PortfolioPage() {
       ),
     retry: false,
   });
-  const showsAmericanAsset = [
-    ...(positions.data ?? []),
-    ...(transactions.data ?? []),
-  ].some((item) => item.market === "US");
   const refresh = () => {
     queryKeys(portfolioId).forEach((key) =>
       queryClient.invalidateQueries({ queryKey: key }),
@@ -272,7 +269,6 @@ export function PortfolioPage() {
         portfolioId={portfolioId}
         editing={editingTransaction}
       />
-      {showsAmericanAsset && <AssetLogoAttribution />}
     </>
   );
 }
@@ -821,7 +817,8 @@ function TransactionDialog({
   const [assetType, setAssetType] = useState<AssetType>("STOCK");
   const [term, setTerm] = useState("");
   const [debounced, setDebounced] = useState("");
-  const [selected, setSelected] = useState<AssetSearchResult | null>(null);
+  const [selected, setSelected] = useState<RegisteredAsset | null>(null);
+  const [freshPrice, setFreshPrice] = useState<number | null>(null);
   const [form, setForm] = useState<TransactionUpdateInput>(() =>
     newTransactionForm(),
   );
@@ -836,6 +833,7 @@ function TransactionDialog({
     setTerm("");
     setDebounced("");
     setSelected(null);
+    setFreshPrice(null);
     setForm(newTransactionForm(editing));
     setInitializedRate(editing?.currency === "BRL" || !editing);
     setPriceEdited(false);
@@ -847,13 +845,25 @@ function TransactionDialog({
     return () => clearTimeout(id);
   }, [term]);
 
-  const search = useQuery({
-    queryKey: ["assets", portfolioId, market, assetType, debounced],
-    queryFn: () =>
-      api<AssetSearchResult[]>(
-        `/api/portfolios/${portfolioId}/assets?market=${market}&assetType=${assetType}&query=${encodeURIComponent(debounced)}`,
-      ),
-    enabled: open && !editing && debounced.length >= 2,
+  const catalog = useQuery({
+    queryKey: ["registered-assets", market],
+    queryFn: () => api<RegisteredAsset[]>(`/api/assets?market=${market}`),
+    enabled: open && !editing,
+  });
+  const catalogResults = useMemo(() => {
+    const query = debounced.toLocaleUpperCase("pt-BR");
+    return (catalog.data ?? []).filter(
+      (item) =>
+        item.assetType === assetType &&
+        (!query ||
+          item.ticker.toLocaleUpperCase("pt-BR").includes(query) ||
+          item.name.toLocaleUpperCase("pt-BR").includes(query)),
+    );
+  }, [assetType, catalog.data, debounced]);
+  const quote = useMutation({
+    mutationFn: (assetId: string) =>
+      api<RegisteredAssetQuote>(`/api/assets/${assetId}/quote`),
+    onSuccess: (result) => setFreshPrice(asNumber(result.price)),
   });
   const transactionDate = ptBrToIso(form.transactionDate);
   const asset = editing
@@ -891,15 +901,15 @@ function TransactionDialog({
     setInitializedRate(true);
   }, [editing, exchangeRate, initializedRate, open]);
   useEffect(() => {
-    if (!selected || selected.currency === "BRL" || !exchangeRate) return;
+    if (!selected || freshPrice === null || !exchangeRate) return;
     setForm((current) => ({
       ...current,
       unitPrice: formattedMoneyInput(
-        String(convertedAmount(selected.price, exchangeRate)),
+        String(convertedAmount(freshPrice, exchangeRate)),
         "BRL",
       ),
     }));
-  }, [exchangeRate, selected]);
+  }, [exchangeRate, freshPrice, selected]);
   const save = useMutation({
     mutationFn: () => {
       const body = {
@@ -910,7 +920,7 @@ function TransactionDialog({
           sourceCurrency === "BRL"
             ? decimalInput(form.unitPrice)
             : !priceEdited && (editing || selected)
-              ? String(editing?.unitPrice ?? selected?.price)
+              ? String(editing?.unitPrice ?? freshPrice)
               : String(
                   decimalForApi(
                     nativeAmount(
@@ -940,7 +950,7 @@ function TransactionDialog({
             method: "POST",
             body: JSON.stringify({
               ...body,
-              assetSelectionId: selected!.selectionId,
+              registeredAssetId: selected!.id,
             }),
           });
     },
@@ -964,6 +974,7 @@ function TransactionDialog({
     asNumber(decimalInput(form.unitPrice));
   const valid = Boolean(
     asset &&
+    (editing || freshPrice !== null) &&
     transactionDate &&
     (sourceCurrency === "BRL" || exchangeRate > 0) &&
     asNumber(decimalInput(form.quantity)) > 0 &&
@@ -998,6 +1009,7 @@ function TransactionDialog({
                 onChange={(event) => {
                   setMarket(event.target.value as AssetMarket);
                   setSelected(null);
+                  setFreshPrice(null);
                 }}
               >
                 <option value="BR">Brasil</option>
@@ -1009,6 +1021,7 @@ function TransactionDialog({
                 onChange={(event) => {
                   setAssetType(event.target.value as AssetType);
                   setSelected(null);
+                  setFreshPrice(null);
                 }}
               >
                 <option value="STOCK">Ação</option>
@@ -1021,41 +1034,33 @@ function TransactionDialog({
                 onChange={(event) => {
                   setTerm(event.target.value);
                   setSelected(null);
+                  setFreshPrice(null);
                 }}
                 placeholder="Ticker ou nome do ativo"
               />
-              {search.isFetching && (
-                <div className="span-2 muted">Buscando ativos…</div>
-              )}
-              {search.isError && (
-                <div className="span-2 error-state">
-                  {apiMessage(search.error)}
+              {catalog.isFetching && (
+                <div className="span-2 muted">
+                  Carregando ativos cadastrados…
                 </div>
               )}
-              {search.data && (
+              {catalog.isError && (
+                <div className="span-2 error-state">
+                  {apiMessage(catalog.error)}
+                </div>
+              )}
+              {catalog.data && (
                 <div className="span-2 search-results">
-                  {search.data.map((item) => (
+                  {catalogResults.map((item) => (
                     <button
                       type="button"
-                      className={`asset-result ${selected?.selectionId === item.selectionId ? "selected" : ""}`}
-                      key={item.selectionId}
+                      className={`asset-result ${selected?.id === item.id ? "selected" : ""}`}
+                      key={item.id}
                       onClick={() => {
                         setSelected(item);
+                        setFreshPrice(null);
                         setPriceEdited(false);
                         setCostsEdited(false);
-                        setForm((current) => ({
-                          ...current,
-                          unitPrice: formattedMoneyInput(
-                            String(
-                              convertedAmount(item.price, exchangeRate || 1),
-                            ),
-                            "BRL",
-                          ),
-                          costs: formattedMoneyInput(
-                            decimalInput(current.costs) || "0",
-                            "BRL",
-                          ),
-                        }));
+                        quote.mutate(item.id);
                       }}
                     >
                       <div className="asset-result__identity">
@@ -1069,10 +1074,10 @@ function TransactionDialog({
                       </div>
                       <strong>
                         {item.currency === "BRL"
-                          ? money(item.price, "BRL")
+                          ? money(item.lastQuote, "BRL")
                           : exchangeRate
                             ? money(
-                                convertedAmount(item.price, exchangeRate),
+                                convertedAmount(item.lastQuote, exchangeRate),
                                 "BRL",
                               )
                             : "Câmbio indisponível"}
@@ -1081,9 +1086,20 @@ function TransactionDialog({
                   ))}
                 </div>
               )}
-              {market === "US" && search.data?.length ? (
-                <div className="span-2">
-                  <AssetLogoAttribution />
+              {catalog.data && !catalogResults.length && !catalog.isFetching ? (
+                <div className="span-2 muted">
+                  Nenhum ativo cadastrado corresponde aos filtros.{" "}
+                  <Link to="/app/ativos" onClick={onClose}>
+                    Cadastre-o na tela de Ativos.
+                  </Link>
+                </div>
+              ) : null}
+              {quote.isPending ? (
+                <div className="span-2 muted">Atualizando cotação…</div>
+              ) : null}
+              {quote.isError ? (
+                <div className="span-2 error-state">
+                  {apiMessage(quote.error)}
                 </div>
               ) : null}
             </>
@@ -1626,7 +1642,6 @@ function IncomePanel({ portfolioId }: { portfolioId: string }) {
                   </div>
                 ))}
               </div>
-              {market === "US" && <AssetLogoAttribution />}
             </>
           )}
         </Card>
@@ -1737,9 +1752,6 @@ function IncomePanel({ portfolioId }: { portfolioId: string }) {
           </div>
         )}
       </Card>
-      {filtered.some((item) => item.market === "US") && (
-        <AssetLogoAttribution />
-      )}
       <Dialog
         open={Boolean(candidate)}
         onClose={() => setCandidate(null)}

@@ -3,6 +3,7 @@ package com.bominvestidor.spring.controller;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static com.bominvestidor.spring.support.RegisteredAssetTestData.registeredAsset;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -41,18 +42,17 @@ import com.bominvestidor.spring.entity.portfolio.PortfolioEntity;
 import com.bominvestidor.spring.entity.transaction.PortfolioTransactionEntity;
 import com.bominvestidor.spring.entity.user.UserEntity;
 import com.bominvestidor.spring.repository.brokerage.BrokerageRepository;
+import com.bominvestidor.spring.repository.asset.RegisteredAssetRepository;
 import com.bominvestidor.spring.repository.portfolio.PortfolioRepository;
 import com.bominvestidor.spring.repository.transaction.PortfolioTransactionRepository;
 import com.bominvestidor.spring.repository.user.UserRepository;
 import com.bominvestidor.spring.exception.PortfolioTransactionConflictException;
 import com.bominvestidor.spring.service.auth.AuthService;
 import com.bominvestidor.spring.service.transaction.PortfolioTransactionService;
-import com.bominvestidor.spring.service.asset.AssetSelectionCache;
-import com.bominvestidor.spring.domain.asset.SelectedAsset;
 
 @SpringBootTest @AutoConfigureMockMvc @ActiveProfiles("test") @Import(PortfolioTransactionIntegrationTests.TestClockConfiguration.class)
 class PortfolioTransactionIntegrationTests {
-	@Autowired MockMvc mockMvc; @Autowired AuthService auth; @Autowired UserRepository users; @Autowired BrokerageRepository brokerages; @Autowired PortfolioRepository portfolios; @Autowired PortfolioTransactionRepository transactions; @Autowired PortfolioTransactionService transactionService; @Autowired AssetSelectionCache selections; @Autowired MutableClock clock;
+	@Autowired MockMvc mockMvc; @Autowired AuthService auth; @Autowired UserRepository users; @Autowired BrokerageRepository brokerages; @Autowired PortfolioRepository portfolios; @Autowired PortfolioTransactionRepository transactions; @Autowired PortfolioTransactionService transactionService; @Autowired RegisteredAssetRepository registeredAssets; @Autowired MutableClock clock;
 
 	@Test void recordsHistoryReservesFutureSalesAndPreservesPortfolioLog() throws Exception {
 		clock.set(Instant.now());
@@ -138,17 +138,18 @@ class PortfolioTransactionIntegrationTests {
 		assertEquals(2, transactions.findAllByPortfolio_Id(portfolioId).size());
 	}
 
-	@Test void rejectsExpiredOrForeignSelectionsAndInvalidDecimalPrecision() throws Exception {
+	@Test void allowsCatalogAssetAcrossPortfoliosRejectsForeignAssetAndInvalidDecimalPrecision() throws Exception {
 		clock.set(Instant.now()); Session owner = session(); UUID portfolioId = portfolio(owner.user()).getId();
-		UUID selectionId = selection(owner, portfolioId); PortfolioEntity original = portfolios.findById(portfolioId).orElseThrow(); Instant now = clock.instant();
+		UUID assetId = selection(owner, portfolioId); PortfolioEntity original = portfolios.findById(portfolioId).orElseThrow(); Instant now = clock.instant();
 		UUID otherPortfolioId = portfolios.saveAndFlush(new PortfolioEntity(UUID.randomUUID(), owner.user(), original.getBrokerage(), "Other portfolio", UUID.randomUUID().toString(), now, now)).getId();
 		mockMvc.perform(post(path(otherPortfolioId)).header("Authorization", bearer(owner)).contentType("application/json")
-				.content(request(selectionId, "BUY", LocalDate.now(clock).toString(), "1", "35.10")))
-			.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ASSET_SELECTION_EXPIRED"));
-		UUID expired = selection(owner, portfolioId); clock.set(clock.instant().plusSeconds(6 * 60));
+				.content(request(assetId, "BUY", LocalDate.now(clock).toString(), "1", "35.10")))
+			.andExpect(status().isCreated());
+		Session other = session();
+		UUID foreign = selection(other, portfolio(other.user()).getId());
 		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(owner)).contentType("application/json")
-				.content(request(expired, "BUY", LocalDate.now(clock).toString(), "1", "35.10")))
-			.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ASSET_SELECTION_EXPIRED"));
+				.content(request(foreign, "BUY", LocalDate.now(clock).toString(), "1", "35.10")))
+			.andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("REGISTERED_ASSET_NOT_FOUND"));
 		UUID precise = selection(owner, portfolioId);
 		mockMvc.perform(post(path(portfolioId)).header("Authorization", bearer(owner)).contentType("application/json")
 				.content(request(precise, "BUY", LocalDate.now(clock).toString(), "1.123456789", "35.10")))
@@ -180,10 +181,10 @@ class PortfolioTransactionIntegrationTests {
 	}
 
 	private String path(UUID portfolioId) { return "/api/portfolios/"+portfolioId+"/transactions"; }
-	private UUID selection(Session session, UUID portfolioId) { return selections.store(session.user().getId(), portfolioId, new SelectedAsset("PETR4", "Petrobras", AssetMarket.BR, AssetType.STOCK, "BRL")); }
+	private UUID selection(Session session, UUID portfolioId) { return registeredAsset(registeredAssets, session.user(), "PETR4", "Petrobras", AssetMarket.BR, AssetType.STOCK, "BRL"); }
 	private String bearer(Session session) { return "Bearer "+session.token(); }
-	private String body(Session session, UUID portfolioId, String type, String date, String quantity) { return "{\"assetSelectionId\":\""+selection(session, portfolioId)+"\",\"type\":\""+type+"\",\"transactionDate\":\""+date+"\",\"quantity\":"+quantity+",\"unitPrice\":35.10}"; }
-	private String request(UUID selectionId, String type, String date, String quantity, String price) { return "{\"assetSelectionId\":\""+selectionId+"\",\"type\":\""+type+"\",\"transactionDate\":\""+date+"\",\"quantity\":"+quantity+",\"unitPrice\":"+price+"}"; }
+	private String body(Session session, UUID portfolioId, String type, String date, String quantity) { return "{\"registeredAssetId\":\""+selection(session, portfolioId)+"\",\"type\":\""+type+"\",\"transactionDate\":\""+date+"\",\"quantity\":"+quantity+",\"unitPrice\":35.10}"; }
+	private String request(UUID assetId, String type, String date, String quantity, String price) { return "{\"registeredAssetId\":\""+assetId+"\",\"type\":\""+type+"\",\"transactionDate\":\""+date+"\",\"quantity\":"+quantity+",\"unitPrice\":"+price+"}"; }
 	private String updateBody(String type, String date, String quantity, String price, String costs) { return "{\"type\":\""+type+"\",\"transactionDate\":\""+date+"\",\"quantity\":"+quantity+",\"unitPrice\":"+price+",\"costs\":"+costs+"}"; }
 	private Session session() { String email=UUID.randomUUID()+"@example.com"; auth.register(new RegisterRequest("Investor",email,"password123")); return new Session(auth.login(new LoginRequest(email,"password123")).token(),users.findByEmail(email).orElseThrow()); }
 	private PortfolioEntity portfolio(UserEntity owner) { Instant now=clock.instant(); BrokerageEntity b=brokerages.saveAndFlush(new BrokerageEntity(UUID.randomUUID(),owner,"Broker","broker"+UUID.randomUUID(),"61384004000105","Legal",null,"ACTIVE","BROKERS","01445000","Rua","Bairro","1",null,"São Paulo","SP",now,now)); return portfolios.saveAndFlush(new PortfolioEntity(UUID.randomUUID(),owner,"unused".equals("x")?null:b,"Portfolio "+UUID.randomUUID(),UUID.randomUUID().toString(),now,now)); }

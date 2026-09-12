@@ -3,6 +3,7 @@ package com.bominvestidor.spring.controller;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static com.bominvestidor.spring.support.RegisteredAssetTestData.registeredAsset;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -42,6 +43,7 @@ import com.bominvestidor.spring.entity.brokerage.BrokerageEntity;
 import com.bominvestidor.spring.entity.portfolio.PortfolioEntity;
 import com.bominvestidor.spring.entity.user.UserEntity;
 import com.bominvestidor.spring.repository.brokerage.BrokerageRepository;
+import com.bominvestidor.spring.repository.asset.RegisteredAssetRepository;
 import com.bominvestidor.spring.repository.portfolio.PortfolioRepository;
 import com.bominvestidor.spring.repository.user.UserRepository;
 import com.bominvestidor.spring.service.auth.AuthService;
@@ -52,8 +54,6 @@ import com.bominvestidor.spring.integration.income.IncomeEventProviderStrategyRe
 import com.bominvestidor.spring.integration.asset.AssetSearchStrategy;
 import com.bominvestidor.spring.integration.asset.AssetSearchStrategyResolver;
 import com.bominvestidor.spring.exception.AssetProviderUnavailableException;
-import com.bominvestidor.spring.service.asset.AssetSelectionCache;
-import com.bominvestidor.spring.domain.asset.SelectedAsset;
 
 @SpringBootTest @AutoConfigureMockMvc @ActiveProfiles("test") @Import(PortfolioIncomeEventIntegrationTests.TestClockConfiguration.class)
 class PortfolioIncomeEventIntegrationTests {
@@ -61,7 +61,7 @@ class PortfolioIncomeEventIntegrationTests {
 	@Autowired MockMvc mockMvc; @Autowired AuthService auth; @Autowired UserRepository users; @Autowired BrokerageRepository brokerages;
 	@Autowired PortfolioRepository portfolios; @Autowired PortfolioPositionService positions; @Autowired MutableClock clock;
 	@Autowired IncomeEventCandidateCache candidateCache;
-	@Autowired AssetSelectionCache selections;
+	@Autowired RegisteredAssetRepository registeredAssets;
 
 	@Test
 	void recordsManualIncomePreservesPositionsAndHandlesPendingLifecycle() throws Exception {
@@ -149,7 +149,7 @@ class PortfolioIncomeEventIntegrationTests {
 	}
 
 	private void buy(Session session, UUID portfolioId, String quantity) throws Exception { mockMvc.perform(post("/api/portfolios/{id}/transactions", portfolioId).header("Authorization", bearer(session)).contentType("application/json")
-			.content("{\"assetSelectionId\":\""+selections.store(session.user().getId(), portfolioId, new SelectedAsset("PETR4", "Petrobras", AssetMarket.BR, AssetType.STOCK, "BRL"))+"\",\"type\":\"BUY\",\"transactionDate\":\""+LocalDate.now(clock).minusDays(10)+"\",\"quantity\":"+quantity+",\"unitPrice\":35.10}")).andExpect(status().isCreated()); }
+			.content("{\"registeredAssetId\":\""+registeredAsset(registeredAssets, session.user(), "PETR4", "Petrobras", AssetMarket.BR, AssetType.STOCK, "BRL")+"\",\"type\":\"BUY\",\"transactionDate\":\""+LocalDate.now(clock).minusDays(10)+"\",\"quantity\":"+quantity+",\"unitPrice\":35.10}")).andExpect(status().isCreated()); }
 	private String path(UUID portfolioId) { return "/api/portfolios/"+portfolioId+"/income-events"; }
 	private String manual(String paymentDate, String amount) { return "{\"ticker\":\"PETR4\",\"type\":\"DIVIDEND\",\"paymentDate\":\""+paymentDate+"\",\"receivedAmount\":"+amount+"}"; }
 	private String bearer(Session session) { return "Bearer "+session.token(); }

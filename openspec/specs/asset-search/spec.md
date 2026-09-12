@@ -6,19 +6,19 @@ Permitir que investidores localizem ações ou ETFs de um mercado escolhido dent
 
 ## Requirements
 
-### Requirement: Busca privada no contexto da carteira
+### Requirement: Busca privada para cadastro do investidor
 
-O sistema SHALL disponibilizar uma busca de ativos somente para uma carteira pertencente ao investidor autenticado. O proprietário MUST ser determinado exclusivamente pelo token, e administradores MUST NOT acessar essa capacidade.
+O sistema SHALL disponibilizar a pesquisa externa de ativos somente a investidores autenticados e para preparar o cadastro no catálogo do próprio investidor. O proprietário MUST ser determinado exclusivamente pelo token, a pesquisa MUST NOT exigir uma carteira e administradores MUST NOT acessar essa capacidade.
 
 #### Scenario: Investidor pesquisa em uma carteira própria
 
-- **WHEN** um investidor autenticado pesquisa ativos usando o UUID de uma de suas carteiras
-- **THEN** o sistema executa a busca no contexto daquela carteira e responde com status `200`
+- **WHEN** um investidor autenticado pesquisa um ativo para seu catálogo, possuindo ou não uma carteira própria
+- **THEN** o sistema executa a busca no contexto daquele investidor e responde com status `200`
 
 #### Scenario: Carteira inexistente ou de outro investidor
 
-- **WHEN** um investidor pesquisa usando o UUID de uma carteira inexistente ou que pertence a outra pessoa
-- **THEN** o sistema responde com status `404` e código `PORTFOLIO_NOT_FOUND`, sem consultar provedores de ativos
+- **WHEN** o investidor pesquisa um ativo pelo novo endpoint sem informar carteira, ainda que não possua carteira ou que uma carteira anteriormente usada tenha deixado de existir
+- **THEN** o sistema não consulta nem valida carteira e executa a pesquisa para permitir o cadastro global do ativo
 
 #### Scenario: Requisição sem autenticação ou por administrador
 
@@ -45,7 +45,7 @@ O sistema SHALL exigir um mercado `BR` ou `US`, um tipo `STOCK` ou `ETF` e um te
 - **THEN** o sistema responde com status `400` e identifica os campos inválidos no erro JSON
 
 ### Requirement: Resultados com cotação mais recente disponível
-O sistema SHALL retornar uma coleção de resultados de busca sem persistir ativos pesquisados. Cada resultado SHALL conter uma referência temporária de seleção, ticker, nome, mercado, tipo, moeda e a cotação mais recente disponível do ativo retornada pelo provedor selecionado, sem expor dados brutos ou detalhes internos da integração. A referência MUST ser utilizável somente pelo investidor autenticado, na carteira consultada, e dentro de sua validade temporária.
+O sistema SHALL retornar uma coleção de resultados de busca sem persistir automaticamente ativos pesquisados. Cada resultado SHALL conter uma referência temporária de seleção, ticker, nome, mercado, tipo, moeda e a cotação mais recente disponível do ativo retornada pelo provedor selecionado, sem expor dados brutos ou detalhes internos da integração. A referência MUST ser utilizável somente pelo investidor autenticado, para cadastrar o ativo em seu catálogo e dentro de sua validade temporária.
 
 #### Scenario: Resultado com cotação
 - **WHEN** o provedor encontra um ativo classificado no mercado e tipo solicitados e fornece sua cotação

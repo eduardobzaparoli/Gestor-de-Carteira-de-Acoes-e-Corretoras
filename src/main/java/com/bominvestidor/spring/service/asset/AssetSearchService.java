@@ -17,27 +17,23 @@ import com.bominvestidor.spring.dto.error.FieldErrorResponse;
 import com.bominvestidor.spring.exception.InvalidAssetSearchDataException;
 import com.bominvestidor.spring.integration.asset.AssetSearchStrategy;
 import com.bominvestidor.spring.integration.asset.AssetSearchStrategyResolver;
-import com.bominvestidor.spring.service.portfolio.PortfolioService;
 
 @Service
 public class AssetSearchService {
 	private static final int MAX_RESULTS = 5;
-	private final PortfolioService portfolioService;
 	private final AssetSearchStrategyResolver strategyResolver;
 	private final AssetSearchCache cache;
 	private final AssetSelectionCache selectionCache;
 
-	public AssetSearchService(PortfolioService portfolioService, AssetSearchStrategyResolver strategyResolver,
-		AssetSearchCache cache, AssetSelectionCache selectionCache) {
-		this.portfolioService = portfolioService;
+	public AssetSearchService(AssetSearchStrategyResolver strategyResolver, AssetSearchCache cache,
+			AssetSelectionCache selectionCache) {
 		this.strategyResolver = strategyResolver;
 		this.cache = cache;
 		this.selectionCache = selectionCache;
 	}
 
-	public List<AssetSearchResponse> search(UUID ownerId, UUID portfolioId, String marketValue, String typeValue,
+	public List<AssetSearchResponse> search(UUID ownerId, String marketValue, String typeValue,
 			String queryValue) {
-		portfolioService.requireOwnedPortfolio(ownerId, portfolioId);
 		AssetMarket market = market(marketValue);
 		AssetType type = type(typeValue);
 		String query = query(queryValue);
@@ -49,7 +45,7 @@ public class AssetSearchService {
 			if (results.size() == MAX_RESULTS) break;
 			cache.findQuote(market, candidate.ticker()).or(() -> findAndCacheQuote(strategy, market, candidate.ticker()))
 					.filter(quote -> AssetIdentityRules.hasCompatibleCurrency(market, quote.currency()))
-					.ifPresent(quote -> results.add(toResponse(ownerId, portfolioId, candidate, quote)));
+					.ifPresent(quote -> results.add(toResponse(ownerId, candidate, quote)));
 		}
 		return List.copyOf(results);
 	}
@@ -68,9 +64,9 @@ public class AssetSearchService {
 	private java.util.Optional<AssetQuote> findAndCacheQuote(AssetSearchStrategy strategy, AssetMarket market, String ticker) {
 		return strategy.findQuote(ticker).map(quote -> { cache.storeQuote(market, ticker, quote); return quote; });
 	}
-	private AssetSearchResponse toResponse(UUID ownerId, UUID portfolioId, AssetCandidate candidate, AssetQuote quote) {
+	private AssetSearchResponse toResponse(UUID ownerId, AssetCandidate candidate, AssetQuote quote) {
 		SelectedAsset asset = new SelectedAsset(candidate.ticker(), candidate.name(), candidate.market(), candidate.assetType(), quote.currency());
-		return new AssetSearchResponse(selectionCache.store(ownerId, portfolioId, asset), asset.ticker(), asset.name(), asset.market(), asset.assetType(),
+		return new AssetSearchResponse(selectionCache.store(ownerId, asset), asset.ticker(), asset.name(), asset.market(), asset.assetType(),
 				asset.currency(), quote.price());
 	}
 	private AssetMarket market(String value) { return parse(value, AssetMarket.class, "market"); }

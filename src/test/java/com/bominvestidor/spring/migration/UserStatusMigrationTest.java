@@ -20,16 +20,17 @@ class UserStatusMigrationTest {
         String databaseUrl = databaseUrl("empty-schema");
 
         MigrateResult firstMigration = migrate(databaseUrl);
-        assertEquals(1, firstMigration.migrationsExecuted);
+        assertEquals(2, firstMigration.migrationsExecuted);
 
         try (Connection connection = DriverManager.getConnection(databaseUrl, "sa", "");
                 Statement statement = connection.createStatement()) {
-            assertEquals(5, queryCount(statement, """
+            assertEquals(6, queryCount(statement, """
                     SELECT COUNT(*)
                     FROM information_schema.tables
                     WHERE table_schema = 'PUBLIC'
                       AND table_name IN ('USERS', 'BROKERAGES', 'PORTFOLIOS',
-                                         'PORTFOLIO_TRANSACTIONS', 'PORTFOLIO_INCOME_EVENTS')
+                                         'PORTFOLIO_TRANSACTIONS', 'PORTFOLIO_INCOME_EVENTS',
+                                         'REGISTERED_ASSETS')
                     """));
             assertEquals(1, queryCount(statement, """
                     SELECT COUNT(*)
@@ -71,7 +72,7 @@ class UserStatusMigrationTest {
         try (Connection connection = DriverManager.getConnection(databaseUrl, "sa", "");
                 Statement statement = connection.createStatement()) {
             assertEquals(1, queryCount(statement, "SELECT COUNT(*) FROM users"));
-            assertEquals(2, queryCount(statement, "SELECT COUNT(*) FROM \"flyway_schema_history\""));
+            assertEquals(3, queryCount(statement, "SELECT COUNT(*) FROM \"flyway_schema_history\""));
             assertEquals(1, queryCount(statement, """
                     SELECT COUNT(*) FROM "flyway_schema_history"
                     WHERE "type" = 'TABLE' AND "success" = TRUE
@@ -91,7 +92,7 @@ class UserStatusMigrationTest {
 
         MigrateResult firstMigration = migrate(databaseUrl);
         MigrateResult secondMigration = migrate(databaseUrl);
-        assertEquals(1, firstMigration.migrationsExecuted);
+        assertEquals(2, firstMigration.migrationsExecuted);
         assertEquals(0, secondMigration.migrationsExecuted);
 
         try (Connection connection = DriverManager.getConnection(databaseUrl, "sa", "");

@@ -10,14 +10,32 @@ test("resolve a fonte de logo de acordo com o mercado", () => {
   );
 });
 
-test("remove a imagem quebrada e mantém o marcador local", () => {
+test("tenta fontes alternativas antes de manter o marcador local", () => {
   const { container } = render(<AssetLogo ticker="BBDC4" market="BR" />);
-  const image = screen.getByRole("img", { name: "Logotipo de BBDC4" });
+  let image = screen.getByRole("img", { name: "Logotipo de BBDC4" });
 
+  fireEvent.error(image);
+  image = screen.getByRole("img", { name: "Logotipo de BBDC4" });
+  expect(image).toHaveAttribute("src", expect.stringContaining("retry=1"));
+  fireEvent.error(image);
+  image = screen.getByRole("img", { name: "Logotipo de BBDC4" });
+  expect(image).toHaveAttribute("src", expect.stringContaining("retry=2"));
   fireEvent.error(image);
 
   expect(screen.queryByRole("img")).not.toBeInTheDocument();
   expect(container.querySelector(".asset-logo__fallback")).toHaveTextContent(
     "BR",
+  );
+});
+
+test("usa outro formato quando a logo americana em webp falha", () => {
+  render(<AssetLogo ticker="MSFT" market="US" />);
+  const image = screen.getByRole("img", { name: "Logotipo de MSFT" });
+
+  fireEvent.error(image);
+
+  expect(screen.getByRole("img", { name: "Logotipo de MSFT" })).toHaveAttribute(
+    "src",
+    expect.stringContaining("format=png"),
   );
 });

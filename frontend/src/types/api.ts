@@ -98,6 +98,26 @@ export interface AssetSearchResult {
   currency: string;
   price: DecimalValue;
 }
+export interface RegisteredAsset {
+  id: string;
+  ticker: string;
+  name: string;
+  market: AssetMarket;
+  assetType: AssetType;
+  currency: string;
+  lastQuote: DecimalValue;
+  quotedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface RegisteredAssetQuote {
+  assetId: string;
+  ticker: string;
+  market: AssetMarket;
+  currency: string;
+  price: DecimalValue;
+  quotedAt: string;
+}
 export interface Position {
   ticker: string;
   assetName: string;
@@ -125,14 +145,17 @@ export interface Transaction {
   updatedAt: string;
 }
 export interface TransactionInput {
-  assetSelectionId: string;
+  registeredAssetId: string;
   type: TransactionType;
   transactionDate: string;
   quantity: string;
   unitPrice: string;
   costs: string;
 }
-export type TransactionUpdateInput = Omit<TransactionInput, "assetSelectionId">;
+export type TransactionUpdateInput = Omit<
+  TransactionInput,
+  "registeredAssetId"
+>;
 export interface ExchangeRate {
   sourceCurrency: string;
   targetCurrency: string;

@@ -22,15 +22,15 @@ public class AssetSelectionCache {
 		this.properties = properties;
 	}
 
-	public UUID store(UUID ownerId, UUID portfolioId, SelectedAsset asset) {
+	public UUID store(UUID ownerId, SelectedAsset asset) {
 		UUID id = UUID.randomUUID();
-		entries.put(id, new Entry(ownerId, portfolioId, asset, clock.instant().plus(properties.getAssetSearchCacheTtl())));
+		entries.put(id, new Entry(ownerId, asset, clock.instant().plus(properties.getAssetSearchCacheTtl())));
 		return id;
 	}
 
-	public Optional<SelectedAsset> find(UUID id, UUID ownerId, UUID portfolioId) {
+	public Optional<SelectedAsset> find(UUID id, UUID ownerId) {
 		Entry entry = entries.get(id);
-		if (entry == null || !entry.ownerId().equals(ownerId) || !entry.portfolioId().equals(portfolioId)
+		if (entry == null || !entry.ownerId().equals(ownerId)
 				|| !entry.expiresAt().isAfter(clock.instant())) {
 			entries.remove(id);
 			return Optional.empty();
@@ -39,5 +39,5 @@ public class AssetSelectionCache {
 	}
 
 	public void remove(UUID id) { entries.remove(id); }
-	private record Entry(UUID ownerId, UUID portfolioId, SelectedAsset asset, Instant expiresAt) { }
+	private record Entry(UUID ownerId, SelectedAsset asset, Instant expiresAt) { }
 }
