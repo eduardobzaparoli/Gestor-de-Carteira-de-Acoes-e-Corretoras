@@ -310,17 +310,17 @@ export function PortfoliosPage() {
                 onChange={(event) => setEditBrokerageId(event.target.value)}
                 error={editBrokerageError}
                 required
-            >
-              <option value="">Selecione uma corretora</option>
-              {editing &&
-                !brokerages.data?.some(
-                  (item) => item.id === editing.brokerage.id,
-                ) && (
-                  <option value={editing.brokerage.id}>
-                    {editing.brokerage.nickname}
-                  </option>
-                )}
-              {brokerages.data?.map((item) => (
+              >
+                <option value="">Selecione uma corretora</option>
+                {editing &&
+                  !brokerages.data?.some(
+                    (item) => item.id === editing.brokerage.id,
+                  ) && (
+                    <option value={editing.brokerage.id}>
+                      {editing.brokerage.nickname}
+                    </option>
+                  )}
+                {brokerages.data?.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.nickname}
                   </option>
