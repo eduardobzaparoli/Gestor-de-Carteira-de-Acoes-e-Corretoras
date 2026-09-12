@@ -50,4 +50,23 @@ O sucesso retorna `200` com a carteira atualizada. Nome duplicado retorna `409 P
 - Ativos dos Estados Unidos usam a Twelve Data para pesquisa, cotação e histórico diário.
 - Dividendos de ativos dos Estados Unidos continuam sendo consultados na Alpha Vantage.
 
+## Candidatos a proventos
+
+`GET /api/portfolios/{portfolioId}/income-events/candidates?market=BR|US` retorna um objeto enriquecido (e não mais uma coleção na raiz):
+
+```json
+{
+  "candidates": [],
+  "updatedAt": "2026-09-12T15:00:00Z",
+  "stale": false,
+  "warnings": []
+}
+```
+
+Cada aviso contém `ticker`, `market` e `code`. Uma falha parcial ou o uso temporário do último resultado válido retorna `200`, preserva os candidatos confiáveis e preenche `warnings`; `stale` indica que ao menos um resultado foi reutilizado após falha de atualização. A API retorna `503` somente quando todos os tickers necessários falham e não existe dado reutilizável. Carteiras sem ticker relevante retornam o objeto vazio sem consultar o provedor.
+
+Proventos brasileiros usam o endpoint agrupado `/api/v2/stocks/dividends` da Brapi. Resultados externos válidos, inclusive vazios, são mantidos temporariamente por mercado e ticker. Configure a janela normal com `INCOME_PROVIDER_CACHE_TTL` (padrão `PT30M`) e a janela adicional de contingência com `INCOME_PROVIDER_STALE_TTL` (padrão `PT6H`). As referências opacas retornadas em `candidates` continuam privadas, vinculadas ao investidor e à carteira e com validade própria.
+
+Os códigos públicos possíveis incluem `BRAPI_RATE_LIMITED`, `BRAPI_AUTHENTICATION_FAILED`, `BRAPI_PLAN_RESTRICTED`, `BRAPI_INVALID_RESPONSE`, `BRAPI_PROVIDER_UNAVAILABLE`, `ALPHAVANTAGE_RATE_LIMITED`, `ALPHAVANTAGE_AUTHENTICATION_FAILED`, `ALPHAVANTAGE_PLAN_RESTRICTED`, `ALPHAVANTAGE_INVALID_RESPONSE` e `ALPHAVANTAGE_PROVIDER_UNAVAILABLE`.
+
 As respostas públicas da API mantêm os mesmos contratos independentemente do provedor. Falhas da Twelve Data são normalizadas como `TWELVE_DATA_RATE_LIMITED` ou `TWELVE_DATA_PROVIDER_UNAVAILABLE`; detalhes técnicos e credenciais não são retornados ao cliente. Não existe fallback para a Alpha Vantage quando pesquisa, cotação ou histórico da Twelve Data falham.

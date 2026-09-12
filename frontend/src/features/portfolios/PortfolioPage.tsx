@@ -54,6 +54,7 @@ import {
   decimalForApi,
   decimalInput,
   date,
+  dateTime,
   formattedMoneyInput,
   isoToPtBr,
   label,
@@ -70,6 +71,7 @@ import type {
   ExchangeRate,
   EvolutionPoint,
   IncomeCandidate,
+  IncomeCandidatesResponse,
   IncomeEvent,
   IncomeEventType,
   IncomeSummary,
@@ -1459,10 +1461,11 @@ function IncomePanel({ portfolioId }: { portfolioId: string }) {
   const candidates = useQuery({
     queryKey: ["income-candidates", portfolioId, market],
     queryFn: () =>
-      api<IncomeCandidate[]>(
+      api<IncomeCandidatesResponse>(
         `/api/portfolios/${portfolioId}/income-events/candidates?market=${market}`,
       ),
     retry: false,
+    placeholderData: (previous) => previous,
   });
   const candidateRate = useQuery({
     queryKey: [
@@ -1598,50 +1601,78 @@ function IncomePanel({ portfolioId }: { portfolioId: string }) {
               message={apiMessage(candidates.error)}
               retry={() => candidates.refetch()}
             />
-          ) : !candidates.data?.length ? (
-            <EmptyState title="Nenhum candidato encontrado">
-              Não há eventos disponíveis para confirmação neste mercado.
-            </EmptyState>
           ) : (
             <>
-              <div className="search-results">
-                {candidates.data.map((item) => (
-                  <div className="asset-result" key={item.candidateId}>
-                    <div className="asset-result__identity">
-                      <AssetLogo ticker={item.ticker} market={item.market} />
-                      <div>
-                        <strong>
-                          {item.ticker} · {label(item.type)}
-                        </strong>
-                        <span>
-                          Pagamento {date(item.paymentDate)} · esperado{" "}
-                          <BrlAmount
-                            portfolioId={portfolioId}
-                            value={item.expectedAmount}
-                            currency={item.currency}
-                            referenceDate={item.paymentDate}
-                          />
-                        </span>
+              {candidates.data?.warnings.length ? (
+                <div className="warning-state" role="status">
+                  <strong>
+                    {candidates.data.stale
+                      ? "Exibindo os últimos dados disponíveis"
+                      : "Alguns ativos não puderam ser atualizados"}
+                  </strong>
+                  <p>
+                    {candidates.data.warnings
+                      .map(
+                        (warning) =>
+                          `${warning.ticker}: ${incomeWarningMessage(warning.code)}`,
+                      )
+                      .join(" ")}
+                    {candidates.data.updatedAt
+                      ? ` Referência: ${dateTime(candidates.data.updatedAt)}.`
+                      : ""}
+                  </p>
+                  <Button
+                    variant="secondary"
+                    onClick={() => candidates.refetch()}
+                  >
+                    Tentar novamente
+                  </Button>
+                </div>
+              ) : null}
+              {!candidates.data?.candidates.length ? (
+                <EmptyState title="Nenhum candidato encontrado">
+                  Não há eventos disponíveis para confirmação neste mercado.
+                </EmptyState>
+              ) : (
+                <div className="search-results">
+                  {candidates.data.candidates.map((item) => (
+                    <div className="asset-result" key={item.candidateId}>
+                      <div className="asset-result__identity">
+                        <AssetLogo ticker={item.ticker} market={item.market} />
+                        <div>
+                          <strong>
+                            {item.ticker} · {label(item.type)}
+                          </strong>
+                          <span>
+                            Pagamento {date(item.paymentDate)} · esperado{" "}
+                            <BrlAmount
+                              portfolioId={portfolioId}
+                              value={item.expectedAmount}
+                              currency={item.currency}
+                              referenceDate={item.paymentDate}
+                            />
+                          </span>
+                        </div>
                       </div>
+                      {item.alreadyRecorded ? (
+                        <Badge>Já registrado</Badge>
+                      ) : item.confirmable ? (
+                        <Button
+                          variant="secondary"
+                          onClick={() => {
+                            setCandidate(item);
+                            setReceived("");
+                          }}
+                        >
+                          Confirmar
+                        </Button>
+                      ) : (
+                        <Badge tone="warning">Inelegível</Badge>
+                      )}
                     </div>
-                    {item.alreadyRecorded ? (
-                      <Badge>Já registrado</Badge>
-                    ) : item.confirmable ? (
-                      <Button
-                        variant="secondary"
-                        onClick={() => {
-                          setCandidate(item);
-                          setReceived("");
-                        }}
-                      >
-                        Confirmar
-                      </Button>
-                    ) : (
-                      <Badge tone="warning">Inelegível</Badge>
-                    )}
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
         </Card>
@@ -1845,6 +1876,27 @@ function IncomePanel({ portfolioId }: { portfolioId: string }) {
       />
     </>
   );
+}
+
+function incomeWarningMessage(code: string) {
+  const messages: Record<string, string> = {
+    ALPHAVANTAGE_RATE_LIMITED:
+      "o limite da Alpha Vantage foi atingido; tente novamente mais tarde.",
+    ALPHAVANTAGE_AUTHENTICATION_FAILED:
+      "a autenticação da Alpha Vantage precisa ser revisada.",
+    ALPHAVANTAGE_PLAN_RESTRICTED:
+      "o plano da Alpha Vantage não permite esta consulta.",
+    ALPHAVANTAGE_INVALID_RESPONSE: "a Alpha Vantage retornou dados inválidos.",
+    ALPHAVANTAGE_PROVIDER_UNAVAILABLE:
+      "a Alpha Vantage está indisponível no momento.",
+    BRAPI_RATE_LIMITED: "o limite da Brapi foi atingido.",
+    BRAPI_AUTHENTICATION_FAILED:
+      "a autenticação da Brapi precisa ser revisada.",
+    BRAPI_PLAN_RESTRICTED: "o plano da Brapi não permite esta consulta.",
+    BRAPI_INVALID_RESPONSE: "a Brapi retornou dados inválidos.",
+    BRAPI_PROVIDER_UNAVAILABLE: "a Brapi está indisponível no momento.",
+  };
+  return messages[code] ?? "o provedor está indisponível no momento.";
 }
 
 const newManualIncomeForm = () => ({

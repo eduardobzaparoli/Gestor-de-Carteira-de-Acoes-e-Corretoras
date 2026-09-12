@@ -28,6 +28,7 @@ import com.bominvestidor.spring.domain.transaction.TransactionStatus;
 import com.bominvestidor.spring.domain.transaction.TransactionType;
 import com.bominvestidor.spring.dto.error.FieldErrorResponse;
 import com.bominvestidor.spring.dto.income.IncomeEventCandidateResponse;
+import com.bominvestidor.spring.dto.income.IncomeEventCandidatesResponse;
 import com.bominvestidor.spring.dto.income.IncomeEventConfirmationRequest;
 import com.bominvestidor.spring.dto.income.ManualIncomeEventCreateRequest;
 import com.bominvestidor.spring.dto.income.PortfolioIncomeEventResponse;
@@ -55,6 +56,7 @@ public class PortfolioIncomeEventService {
 	private final PortfolioIncomeEventRepository repository;
 	private final IncomeEventProviderStrategyResolver providerResolver;
 	private final IncomeEventCandidateCache candidateCache;
+	private final IncomeProviderEventCache providerEventCache;
 	private final PortfolioIncomeEventMapper mapper;
 	private final PortfolioIncomeEventReconciliationService reconciliationService;
 	private final ExchangeRateService exchangeRateService;
@@ -62,27 +64,32 @@ public class PortfolioIncomeEventService {
 
 	public PortfolioIncomeEventService(PortfolioService portfolioService, PortfolioTransactionRepository transactionRepository,
 			PortfolioIncomeEventRepository repository, IncomeEventProviderStrategyResolver providerResolver,
-			IncomeEventCandidateCache candidateCache, PortfolioIncomeEventMapper mapper,
+			IncomeEventCandidateCache candidateCache, IncomeProviderEventCache providerEventCache, PortfolioIncomeEventMapper mapper,
 			PortfolioIncomeEventReconciliationService reconciliationService, ExchangeRateService exchangeRateService, Clock clock) {
 		this.portfolioService=portfolioService; this.transactionRepository=transactionRepository; this.repository=repository;
-		this.providerResolver=providerResolver; this.candidateCache=candidateCache; this.mapper=mapper;
+		this.providerResolver=providerResolver; this.candidateCache=candidateCache; this.providerEventCache=providerEventCache; this.mapper=mapper;
 		this.reconciliationService=reconciliationService; this.exchangeRateService=exchangeRateService; this.clock=clock;
 	}
 
 	@Transactional
-	public List<IncomeEventCandidateResponse> findCandidates(UUID ownerId, UUID portfolioId, AssetMarket market) {
+	public IncomeEventCandidatesResponse findCandidates(UUID ownerId, UUID portfolioId, AssetMarket market) {
 		portfolioService.ownedPortfolio(ownerId, portfolioId);
 		reconciliationService.reconcile(portfolioId);
 		IncomeEventProviderStrategy provider = providerResolver.resolve(market);
-		if (provider == null) return List.of();
+		if (provider == null) return new IncomeEventCandidatesResponse(List.of(), clock.instant(), false, List.of());
 		List<PortfolioTransactionEntity> transactions = transactionRepository.findAllByPortfolio_Id(portfolioId);
 		Map<String, PortfolioTransactionEntity> assets = transactions.stream()
 			.filter(item -> item.getStatus() == TransactionStatus.EFFECTIVE && item.getType() == TransactionType.BUY && item.getMarket() == market)
 			.sorted(Comparator.comparing(PortfolioTransactionEntity::getTransactionDate).reversed()
 				.thenComparing(PortfolioTransactionEntity::getCreatedAt, Comparator.reverseOrder()))
 			.collect(java.util.stream.Collectors.toMap(item -> item.getTicker().toUpperCase(Locale.ROOT), item -> item, (first, ignored) -> first, LinkedHashMap::new));
-		return assets.values().stream().flatMap(asset -> provider.findEvents(asset.getTicker()).stream()
-			.map(event -> candidate(portfolioId, asset, transactions, event))).map(candidate -> toCandidateResponse(ownerId, portfolioId, candidate)).toList();
+		if (assets.isEmpty()) return new IncomeEventCandidatesResponse(List.of(), clock.instant(), false, List.of());
+		IncomeProviderEventCache.Resolution resolution = providerEventCache.resolve(market, assets.keySet(), provider);
+		List<IncomeEventCandidateResponse> candidates = resolution.events().entrySet().stream()
+				.flatMap(item -> item.getValue().stream().map(event -> candidate(portfolioId, assets.get(item.getKey()), transactions, event)))
+				.sorted(Comparator.comparing(IncomeEventCandidate::paymentDate).reversed().thenComparing(IncomeEventCandidate::ticker))
+				.map(candidate -> toCandidateResponse(ownerId, portfolioId, candidate)).toList();
+		return new IncomeEventCandidatesResponse(candidates, resolution.updatedAt(), resolution.stale(), resolution.warnings());
 	}
 
 	@Transactional
@@ -166,7 +173,7 @@ public class PortfolioIncomeEventService {
 		BigDecimal quantity = futureEligibility ? null : IncomeEligibilityCalculator.quantityAt(transactions, asset.getTicker(), asset.getMarket(), event.eligibilityDate(), asset.getMarket() == AssetMarket.BR);
 		BigDecimal expected = quantity == null ? null : quantity.multiply(event.unitAmount());
 		boolean recorded = repository.existsByPortfolio_IdAndSourceAndEventKey(portfolioId, event.source(), event.eventKey());
-		boolean confirmable = !futureEligibility && quantity.signum() > 0 && !recorded;
+		boolean confirmable = !futureEligibility && quantity != null && quantity.signum() > 0 && !recorded;
 		return new IncomeEventCandidate(event.eventKey(), asset.getTicker(), asset.getAssetName(), asset.getMarket(), asset.getAssetType(), asset.getCurrency(), event.type(), event.source(), event.unitAmount(), event.eligibilityDate(), event.paymentDate(), quantity, expected, confirmable, recorded);
 	}
 	private IncomeEventCandidateResponse toCandidateResponse(UUID ownerId, UUID portfolioId, IncomeEventCandidate candidate) {

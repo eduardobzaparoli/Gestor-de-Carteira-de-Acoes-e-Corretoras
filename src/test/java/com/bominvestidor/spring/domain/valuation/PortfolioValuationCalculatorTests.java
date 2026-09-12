@@ -29,7 +29,9 @@ class PortfolioValuationCalculatorTests {
 		assertEquals(3, result.positions().size());
 		assertEquals(0, new BigDecimal("120").compareTo(result.positions().get(0).marketValue()));
 		assertEquals(0, new BigDecimal("20").compareTo(result.positions().get(0).unrealizedGain()));
-		assertEquals(0, new BigDecimal("75").compareTo(result.positions().get(0).allocationPercentage()));
+		assertEquals(0, new BigDecimal("8.82").compareTo(result.positions().get(0).allocationPercentage()));
+		assertEquals(0, result.positions().stream().map(PortfolioValuationPosition::allocationPercentage)
+				.reduce(BigDecimal.ZERO, BigDecimal::add).compareTo(new BigDecimal("100.00")));
 		assertEquals(2, result.currencySummaries().size());
 		assertEquals("BRL", result.currencySummaries().get(0).currency());
 		assertEquals(0, new BigDecimal("160").compareTo(result.currencySummaries().get(0).marketValue()));
@@ -65,6 +67,23 @@ class PortfolioValuationCalculatorTests {
 
 		assertEquals(0, new BigDecimal("1200").compareTo(result.consolidatedSummary().marketValue()));
 		assertEquals(1, result.consolidatedSummary().exchangeRates().size());
+		assertEquals(0, new BigDecimal("100.00").compareTo(result.positions().get(0).allocationPercentage()));
+	}
+
+	@Test
+	void closesRepeatingAllocationsAtOneHundredIndependentlyOfInputOrder() {
+		PortfolioPositionResponse aaa = position("AAA3", AssetMarket.BR, "BRL", "1", "1");
+		PortfolioPositionResponse bbb = position("BBB3", AssetMarket.BR, "BRL", "1", "1");
+		PortfolioPositionResponse ccc = position("CCC3", AssetMarket.BR, "BRL", "1", "1");
+		Map<PortfolioValuationCalculator.PositionKey, AssetQuote> quotes = Map.of(key(aaa), quote("AAA3", "BRL", "1"),
+				key(bbb), quote("BBB3", "BRL", "1"), key(ccc), quote("CCC3", "BRL", "1"));
+		var first = calculator.calculate(List.of(aaa, bbb, ccc), quotes, Map.of());
+		var reversed = calculator.calculate(List.of(ccc, bbb, aaa), quotes, Map.of());
+		assertEquals(new BigDecimal("100.00"), first.positions().stream().map(PortfolioValuationPosition::allocationPercentage)
+				.reduce(BigDecimal.ZERO, BigDecimal::add));
+		Map<String, BigDecimal> firstByTicker = first.positions().stream().collect(java.util.stream.Collectors.toMap(
+				PortfolioValuationPosition::ticker, PortfolioValuationPosition::allocationPercentage));
+		reversed.positions().forEach(position -> assertEquals(firstByTicker.get(position.ticker()), position.allocationPercentage()));
 	}
 
 	private PortfolioPositionResponse position(String ticker, AssetMarket market, String currency, String quantity, String cost) {

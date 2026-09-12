@@ -86,8 +86,10 @@ class EnvironmentConfigurationFilesTests {
         assertEquals("troque-por-sua-chave", properties.getProperty("ALPHA_VANTAGE_API_KEY"));
         assertEquals("troque-por-sua-chave-twelve-data", properties.getProperty("TWELVE_DATA_API_KEY"));
         assertEquals("troque-por-seu-token", properties.getProperty("BRAPI_TOKEN"));
+		assertEquals("PT30M", properties.getProperty("INCOME_PROVIDER_CACHE_TTL"));
+		assertEquals("PT6H", properties.getProperty("INCOME_PROVIDER_STALE_TTL"));
         assertEquals("http://localhost:5173", properties.getProperty("CORS_ALLOWED_ORIGINS"));
-        assertEquals(9, properties.size());
+		assertEquals(11, properties.size());
     }
 
     @Test
