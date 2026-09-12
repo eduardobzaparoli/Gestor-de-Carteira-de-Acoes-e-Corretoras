@@ -24,6 +24,10 @@ public class PortfolioExchangeRateService {
 
 	public ExchangeRateResponse find(UUID ownerId, UUID portfolioId, String sourceCurrency, LocalDate requestedDate) {
 		portfolioService.requireOwnedPortfolio(ownerId, portfolioId);
+		return find(sourceCurrency, requestedDate);
+	}
+
+	public ExchangeRateResponse find(String sourceCurrency, LocalDate requestedDate) {
 		String source = sourceCurrency == null ? "" : sourceCurrency.trim().toUpperCase(Locale.ROOT);
 		if ("BRL".equals(source)) return new ExchangeRateResponse("BRL", "BRL", java.math.BigDecimal.ONE, requestedDate);
 		ExchangeRate rate = exchangeRateService.find(source, "BRL", requestedDate)

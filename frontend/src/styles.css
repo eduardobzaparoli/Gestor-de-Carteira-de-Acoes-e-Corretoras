@@ -795,6 +795,21 @@ input.control::placeholder {
 .grid-4 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
+.admin-users-metrics {
+  margin-bottom: 1.25rem;
+}
+.admin-users-list {
+  margin-top: 0;
+}
+.admin-user-form .form-grid {
+  align-items: start;
+}
+.admin-user-form .field {
+  align-content: start;
+}
+.admin-user-form .field small {
+  line-height: 1.35;
+}
 .portfolio-card {
   position: relative;
   overflow: hidden;
@@ -1072,16 +1087,6 @@ input.control::placeholder {
   gap: 0.65rem;
   min-width: 0;
 }
-.asset-logo-attribution {
-  color: var(--muted);
-  font-size: 1rem;
-  margin: 1rem 0 0;
-  text-align: right;
-}
-.asset-logo-attribution a {
-  color: var(--primary);
-  font-weight: 700;
-}
 .broker-card h3 {
   margin: 0.7rem 0 0.25rem;
 }
@@ -1105,6 +1110,60 @@ input.control::placeholder {
   margin-top: 1rem;
   padding-top: 0.9rem;
   border-top: 1px solid var(--line);
+}
+
+.asset-filters {
+  margin-bottom: 1.25rem;
+}
+
+.asset-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.asset-card__heading {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.asset-card__heading h3,
+.asset-card__heading p {
+  margin: 0;
+}
+
+.asset-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.asset-card__quote {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+}
+
+.asset-card__quote span,
+.asset-card__quote small {
+  color: var(--muted);
+}
+
+.asset-card__quote strong {
+  font-size: 1.35rem;
+}
+.asset-card__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  margin-top: auto;
+}
+.brand {
+  text-decoration: none;
 }
 .currency-row {
   display: flex;

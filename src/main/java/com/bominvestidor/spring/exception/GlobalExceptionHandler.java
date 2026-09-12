@@ -127,6 +127,12 @@ public class GlobalExceptionHandler {
 		return response(HttpStatus.CONFLICT, exception.getCode(), exception.getMessage(), request.getRequestURI(), List.of());
 	}
 
+	@ExceptionHandler(RegisteredAssetConflictException.class)
+	ResponseEntity<ApiErrorResponse> handleRegisteredAssetConflict(RegisteredAssetConflictException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.CONFLICT, exception.getCode(), exception.getMessage(), request.getRequestURI(), List.of());
+	}
+
 	@ExceptionHandler(PortfolioIncomeEventConflictException.class)
 	ResponseEntity<ApiErrorResponse> handlePortfolioIncomeEventConflict(PortfolioIncomeEventConflictException exception,
 			HttpServletRequest request) {
@@ -137,6 +143,13 @@ public class GlobalExceptionHandler {
 	ResponseEntity<ApiErrorResponse> handleBrokerageNotFound(BrokerageNotFoundException exception,
 			HttpServletRequest request) {
 		return response(HttpStatus.NOT_FOUND, "BROKERAGE_NOT_FOUND", exception.getMessage(), request.getRequestURI(), List.of());
+	}
+
+	@ExceptionHandler(RegisteredAssetNotFoundException.class)
+	ResponseEntity<ApiErrorResponse> handleRegisteredAssetNotFound(RegisteredAssetNotFoundException exception,
+			HttpServletRequest request) {
+		return response(HttpStatus.NOT_FOUND, "REGISTERED_ASSET_NOT_FOUND", exception.getMessage(),
+				request.getRequestURI(), List.of());
 	}
 
 	@ExceptionHandler(PortfolioNotFoundException.class)

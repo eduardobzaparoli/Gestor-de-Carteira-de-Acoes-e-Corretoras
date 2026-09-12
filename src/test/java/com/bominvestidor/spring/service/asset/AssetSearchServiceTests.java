@@ -28,15 +28,12 @@ import com.bominvestidor.spring.domain.asset.AssetType;
 import com.bominvestidor.spring.exception.InvalidAssetSearchDataException;
 import com.bominvestidor.spring.integration.asset.AssetSearchStrategy;
 import com.bominvestidor.spring.integration.asset.AssetSearchStrategyResolver;
-import com.bominvestidor.spring.service.portfolio.PortfolioService;
 
 @ExtendWith(MockitoExtension.class)
 class AssetSearchServiceTests {
-	@Mock private PortfolioService portfolioService;
 	@Mock private AssetSearchStrategy strategy;
 	private AssetSearchService service;
 	private final UUID ownerId = UUID.randomUUID();
-	private final UUID portfolioId = UUID.randomUUID();
 
 	@BeforeEach
 	void setUp() {
@@ -44,7 +41,7 @@ class AssetSearchServiceTests {
 		BrokerageIntegrationProperties properties = new BrokerageIntegrationProperties();
 		Clock clock = Clock.fixed(Instant.parse("2026-08-28T12:00:00Z"), ZoneOffset.UTC);
 		AssetSearchCache cache = new AssetSearchCache(clock, properties);
-		service = new AssetSearchService(portfolioService, new AssetSearchStrategyResolver(List.of(strategy)), cache, new AssetSelectionCache(clock, properties));
+		service = new AssetSearchService(new AssetSearchStrategyResolver(List.of(strategy)), cache, new AssetSelectionCache(clock, properties));
 	}
 
 	@Test
@@ -55,21 +52,19 @@ class AssetSearchServiceTests {
 		when(strategy.findQuote("PETR4")).thenReturn(Optional.of(new AssetQuote("PETR4", "BRL", new BigDecimal("35.10"))));
 		when(strategy.findQuote("VALE3")).thenReturn(Optional.empty());
 
-		var first = service.search(ownerId, portfolioId, "br", "stock", " pet ");
-		var second = service.search(ownerId, portfolioId, "BR", "STOCK", "PET");
+		var first = service.search(ownerId, "br", "stock", " pet ");
+		var second = service.search(ownerId, "BR", "STOCK", "PET");
 
 		assertEquals(1, first.size());
 		assertEquals("PETR4", first.get(0).ticker());
 		assertEquals(first.get(0).ticker(), second.get(0).ticker());
-		verify(portfolioService, times(2)).requireOwnedPortfolio(ownerId, portfolioId);
 		verify(strategy, times(1)).findCandidates(AssetType.STOCK, "PET");
 		verify(strategy, times(1)).findQuote("PETR4");
 	}
 
 	@Test
-	void validatesSearchParametersAfterCheckingPortfolioAccess() {
+	void validatesSearchParameters() {
 		assertThrows(InvalidAssetSearchDataException.class,
-				() -> service.search(ownerId, portfolioId, "BR", "ETF", " "));
-		verify(portfolioService).requireOwnedPortfolio(ownerId, portfolioId);
+				() -> service.search(ownerId, "BR", "ETF", " "));
 	}
 }

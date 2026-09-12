@@ -178,6 +178,8 @@ As URLs possuem padrões públicos configurados em `application.properties`. As 
 
 `BRAPI_TOKEN`, `TWELVE_DATA_API_KEY` e `ALPHA_VANTAGE_API_KEY` são opcionais para iniciar. A ausência de uma credencial desabilita somente as capacidades do respectivo provedor: a Twelve Data atende pesquisa, cotação e histórico dos EUA; a Alpha Vantage permanece responsável pelos dividendos dos EUA; e a Brapi atende o mercado brasileiro. Não há fallback de cotação ou histórico para a Alpha Vantage.
 
+O catálogo de ativos não adiciona novas variáveis de ambiente. O cadastro e a atualização de ativos brasileiros reutilizam `BRAPI_TOKEN` quando configurado; ativos americanos reutilizam `TWELVE_DATA_API_KEY`. A cotação consultada ao preparar um lançamento usa a mesma configuração do mercado selecionado, enquanto `ALPHA_VANTAGE_API_KEY` continua restrita aos dividendos americanos.
+
 ### Limites e uso dos dados da Twelve Data
 
 O consumo da Twelve Data é contabilizado por créditos e está sujeito aos limites do plano contratado. No plano Basic, a referência vigente no momento desta configuração é de 8 créditos por minuto e 800 por dia; endpoints ou planos diferentes podem ter custos e limites próprios. Respostas de limite excedido são apresentadas pela API com o código público `TWELVE_DATA_RATE_LIMITED`, sem expor a chave ou o corpo técnico do provedor.

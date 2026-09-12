@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  ChartCandlestick,
   Building2,
   LogOut,
   Menu,
@@ -17,11 +18,14 @@ import { useAuth } from "./AuthContext";
 export function Shell() {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
+  const homePath =
+    user?.role === "ADMIN" ? "/admin/usuarios" : "/app/carteiras";
   const nav =
     user?.role === "ADMIN"
       ? [{ to: "/admin/usuarios", label: "Usuários", icon: Users }]
       : [
           { to: "/app/carteiras", label: "Carteiras", icon: WalletCards },
+          { to: "/app/ativos", label: "Ativos", icon: ChartCandlestick },
           { to: "/app/corretoras", label: "Corretoras", icon: Building2 },
         ];
   const links = (
@@ -38,12 +42,16 @@ export function Shell() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-header">
-          <div className="brand">
+          <NavLink
+            className="brand"
+            to={homePath}
+            aria-label="Voltar à visão geral"
+          >
             <span className="brand-mark">
               <TrendingUp size={21} />
             </span>
             Bom Investidor
-          </div>
+          </NavLink>
           <ThemeToggle className="theme-toggle--compact" />
         </div>
         <span className="nav-label">Visão geral</span>
@@ -58,12 +66,16 @@ export function Shell() {
         </div>
       </aside>
       <header className="mobile-header">
-        <div className="brand">
+        <NavLink
+          className="brand"
+          to={homePath}
+          aria-label="Voltar à visão geral"
+        >
           <span className="brand-mark">
             <BarChart3 size={19} />
           </span>
           Bom Investidor
-        </div>
+        </NavLink>
         <div className="mobile-header__actions">
           <ThemeToggle className="theme-toggle--compact" />
           <button

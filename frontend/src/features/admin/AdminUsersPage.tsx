@@ -126,7 +126,7 @@ export function AdminUsersPage() {
           </Button>
         }
       />
-      <div className="grid grid-3">
+      <div className="grid grid-3 admin-users-metrics">
         <AdminMetric
           label="Contas cadastradas"
           value={counts.total}
@@ -143,7 +143,7 @@ export function AdminUsersPage() {
           icon={<ShieldCheck />}
         />
       </div>
-      <Card>
+      <Card className="admin-users-list">
         <div className="card-header">
           <div>
             <h2>Usuários</h2>
@@ -262,6 +262,7 @@ export function AdminUsersPage() {
         title={editing ? "Editar usuário" : "Novo usuário"}
       >
         <form
+          className="admin-user-form"
           noValidate
           onSubmit={(e) => {
             e.preventDefault();

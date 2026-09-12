@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static com.bominvestidor.spring.support.RegisteredAssetTestData.registeredAsset;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -34,13 +35,12 @@ import com.bominvestidor.spring.entity.brokerage.BrokerageEntity;
 import com.bominvestidor.spring.entity.portfolio.PortfolioEntity;
 import com.bominvestidor.spring.entity.user.UserEntity;
 import com.bominvestidor.spring.repository.brokerage.BrokerageRepository;
+import com.bominvestidor.spring.repository.asset.RegisteredAssetRepository;
 import com.bominvestidor.spring.repository.portfolio.PortfolioRepository;
 import com.bominvestidor.spring.repository.user.UserRepository;
 import com.bominvestidor.spring.service.auth.AuthService;
-import com.bominvestidor.spring.service.asset.AssetSelectionCache;
 import com.bominvestidor.spring.domain.asset.AssetMarket;
 import com.bominvestidor.spring.domain.asset.AssetType;
-import com.bominvestidor.spring.domain.asset.SelectedAsset;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -53,7 +53,7 @@ class PortfolioPositionIntegrationTests {
 	@Autowired BrokerageRepository brokerages;
 	@Autowired PortfolioRepository portfolios;
 	@Autowired MutableClock clock;
-	@Autowired AssetSelectionCache selections;
+	@Autowired RegisteredAssetRepository registeredAssets;
 
 	@Test
 	void calculatesWeightedAveragePartialSalesFullSettlementAndReopening() throws Exception {
@@ -70,7 +70,7 @@ class PortfolioPositionIntegrationTests {
 
 		mockMvc.perform(get(positionsPath(portfolioId)).header("Authorization", bearer(session)))
 			.andExpect(status().isOk()).andExpect(jsonPath("$[0].ticker").value("PETR4"))
-			.andExpect(jsonPath("$[0].assetName").value("Petrobras venda"))
+			.andExpect(jsonPath("$[0].assetName").value("Petrobras antigo"))
 			.andExpect(jsonPath("$[0].quantity").value(11))
 			.andExpect(jsonPath("$[0].averagePrice").value(13.53333333));
 
@@ -141,9 +141,9 @@ class PortfolioPositionIntegrationTests {
 		String market = com.jayway.jsonpath.JsonPath.read(body, "$.market");
 		String type = com.jayway.jsonpath.JsonPath.read(body, "$.assetType");
 		String currency = com.jayway.jsonpath.JsonPath.read(body, "$.currency");
-		UUID selectionId = selections.store(session.user().getId(), portfolioId, new SelectedAsset(ticker, name, AssetMarket.valueOf(market), AssetType.valueOf(type), currency));
-		String request = "{\"assetSelectionId\":\"%s\",\"type\":\"%s\",\"transactionDate\":\"%s\",\"quantity\":%s,\"unitPrice\":%s,\"costs\":%s}"
-				.formatted(selectionId, com.jayway.jsonpath.JsonPath.read(body, "$.type"), com.jayway.jsonpath.JsonPath.read(body, "$.transactionDate"), com.jayway.jsonpath.JsonPath.read(body, "$.quantity"), com.jayway.jsonpath.JsonPath.read(body, "$.unitPrice"), com.jayway.jsonpath.JsonPath.read(body, "$.costs"));
+		UUID assetId = registeredAsset(registeredAssets, session.user(), ticker, name, AssetMarket.valueOf(market), AssetType.valueOf(type), currency);
+		String request = "{\"registeredAssetId\":\"%s\",\"type\":\"%s\",\"transactionDate\":\"%s\",\"quantity\":%s,\"unitPrice\":%s,\"costs\":%s}"
+				.formatted(assetId, com.jayway.jsonpath.JsonPath.read(body, "$.type"), com.jayway.jsonpath.JsonPath.read(body, "$.transactionDate"), com.jayway.jsonpath.JsonPath.read(body, "$.quantity"), com.jayway.jsonpath.JsonPath.read(body, "$.unitPrice"), com.jayway.jsonpath.JsonPath.read(body, "$.costs"));
 		return mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/portfolios/{portfolioId}/transactions", portfolioId).header("Authorization", bearer(session)).contentType("application/json").content(request));
 	}
 	private String transaction(String ticker, String name, String market, String type, String currency, String transactionType,

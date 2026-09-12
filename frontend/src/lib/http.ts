@@ -131,6 +131,12 @@ export const apiMessage = (error: unknown) => {
     INSUFFICIENT_POSITION: "A quantidade de venda supera o saldo disponível.",
     INSUFFICIENT_ASSET_QUANTITY:
       "A quantidade de venda supera o saldo disponível.",
+    ASSET_ALREADY_REGISTERED: "Este ativo já está cadastrado.",
+    REGISTERED_ASSET_NOT_FOUND: "O ativo cadastrado não foi encontrado.",
+    REGISTERED_ASSET_HAS_POSITION:
+      "Este ativo possui saldo positivo em uma carteira e não pode ser excluído.",
+    ASSET_QUOTE_UNAVAILABLE:
+      "Não foi possível atualizar a cotação. Tente novamente mais tarde.",
     LAST_ACTIVE_ADMIN:
       "O último administrador ativo não pode perder esse papel.",
     CANNOT_DEACTIVATE_SELF: "Você não pode desativar sua própria conta.",
