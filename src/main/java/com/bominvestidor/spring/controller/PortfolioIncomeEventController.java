@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.bominvestidor.spring.domain.asset.AssetMarket;
-import com.bominvestidor.spring.dto.income.IncomeEventCandidateResponse;
+import com.bominvestidor.spring.dto.income.IncomeEventCandidatesResponse;
 import com.bominvestidor.spring.dto.income.IncomeEventConfirmationRequest;
 import com.bominvestidor.spring.dto.income.ManualIncomeEventCreateRequest;
 import com.bominvestidor.spring.dto.income.PortfolioIncomeEventResponse;
@@ -35,7 +35,7 @@ public class PortfolioIncomeEventController {
 	public PortfolioIncomeEventController(PortfolioIncomeEventService service) { this.service = service; }
 
 	@GetMapping("/candidates")
-	public List<IncomeEventCandidateResponse> candidates(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID portfolioId,
+	public IncomeEventCandidatesResponse candidates(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID portfolioId,
 			@RequestParam AssetMarket market) { return service.findCandidates(ownerId(jwt), portfolioId, market); }
 	@PostMapping("/confirmations")
 	public ResponseEntity<PortfolioIncomeEventResponse> confirm(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID portfolioId,

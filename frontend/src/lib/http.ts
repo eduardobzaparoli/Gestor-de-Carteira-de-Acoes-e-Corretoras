@@ -142,6 +142,23 @@ export const apiMessage = (error: unknown) => {
     CANNOT_DEACTIVATE_SELF: "Você não pode desativar sua própria conta.",
     ALPHAVANTAGE_RATE_LIMITED:
       "O limite do provedor de mercado foi atingido. Tente novamente mais tarde.",
+    ALPHAVANTAGE_AUTHENTICATION_FAILED:
+      "Não foi possível autenticar na Alpha Vantage. Revise a configuração.",
+    ALPHAVANTAGE_PLAN_RESTRICTED:
+      "O plano da Alpha Vantage não permite consultar dividendos.",
+    ALPHAVANTAGE_INVALID_RESPONSE:
+      "A Alpha Vantage retornou dados inválidos. Tente novamente mais tarde.",
+    ALPHAVANTAGE_PROVIDER_UNAVAILABLE:
+      "Os dividendos americanos estão indisponíveis no momento.",
+    BRAPI_RATE_LIMITED:
+      "O limite da Brapi foi atingido. Tente novamente mais tarde.",
+    BRAPI_AUTHENTICATION_FAILED:
+      "Não foi possível autenticar na Brapi. Revise a configuração.",
+    BRAPI_PLAN_RESTRICTED: "O plano da Brapi não permite consultar proventos.",
+    BRAPI_INVALID_RESPONSE:
+      "A Brapi retornou dados inválidos. Tente novamente mais tarde.",
+    BRAPI_PROVIDER_UNAVAILABLE:
+      "Os proventos brasileiros estão indisponíveis no momento.",
     TWELVE_DATA_RATE_LIMITED:
       "O limite do provedor de mercado foi atingido. Tente novamente mais tarde.",
     TWELVE_DATA_PROVIDER_UNAVAILABLE:

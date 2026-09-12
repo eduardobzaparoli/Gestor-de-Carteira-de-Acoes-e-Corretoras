@@ -53,6 +53,7 @@ class PortfolioIncomeEventServiceTests {
 		Clock clock = Clock.fixed(Instant.parse("2026-06-01T00:00:00Z"), ZoneOffset.UTC);
 		service = new PortfolioIncomeEventService(portfolioService, mock(PortfolioTransactionRepository.class), repository,
 				mock(IncomeEventProviderStrategyResolver.class), new IncomeEventCandidateCache(clock, new BrokerageIntegrationProperties()),
+				new IncomeProviderEventCache(clock, new BrokerageIntegrationProperties()),
 				new PortfolioIncomeEventMapper(), mock(PortfolioIncomeEventReconciliationService.class), exchangeRateService, clock);
 	}
 

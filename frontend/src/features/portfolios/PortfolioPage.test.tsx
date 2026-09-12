@@ -127,6 +127,63 @@ test("não exibe atribuição americana quando a carteira contém apenas ativos 
   ).not.toBeInTheDocument();
 });
 
+test("exibe na tabela e na composição os percentuais multimoeda consolidados pela API", async () => {
+  const americanPosition = {
+    ...position,
+    ticker: "MSFT",
+    assetName: "Microsoft",
+    market: "US",
+    currency: "USD",
+    quantity: 2,
+  };
+  server.use(
+    http.get("*/api/portfolios/p1/positions", () =>
+      HttpResponse.json([position, americanPosition]),
+    ),
+    http.get("*/api/portfolios/p1/valuation", () =>
+      HttpResponse.json({
+        positions: [
+          {
+            ...position,
+            currentPrice: 32.1,
+            marketValue: 481.5,
+            unrealizedGain: 278.5,
+            returnPercentage: 137.19,
+            allocationPercentage: 8.75,
+          },
+          {
+            ...americanPosition,
+            currentPrice: 495.58,
+            marketValue: 991.16,
+            unrealizedGain: 200,
+            returnPercentage: 25,
+            allocationPercentage: 91.25,
+          },
+        ],
+        currencySummaries: [],
+        consolidatedSummary: {
+          baseCurrency: "BRL",
+          investedValue: 5000,
+          marketValue: 5500,
+          totalGain: 500,
+          returnPercentage: 10,
+          exchangeRates: [],
+          historicalExchangeRates: [],
+        },
+      }),
+    ),
+    ...baseHandlers(),
+  );
+
+  renderPortfolio();
+
+  await screen.findByRole("heading", { name: "Longo prazo" });
+  expect(screen.getByText("8,75%")).toBeVisible();
+  expect(screen.getByText("91,25%")).toBeVisible();
+  expect(screen.getByText(/PETR4 · 8,75%/)).toBeVisible();
+  expect(screen.getByText(/MSFT · 91,25%/)).toBeVisible();
+});
+
 test("pesquisa um ativo e registra uma compra", async () => {
   let body: Record<string, string> | undefined;
   server.use(
@@ -458,7 +515,12 @@ test("oferece no provento manual apenas os ativos em custódia", async () => {
     ...baseHandlers(),
     http.get("*/api/portfolios/p1/income-events", () => HttpResponse.json([])),
     http.get("*/api/portfolios/p1/income-events/candidates", () =>
-      HttpResponse.json([]),
+      HttpResponse.json({
+        candidates: [],
+        updatedAt: "2026-09-12T10:00:00Z",
+        stale: false,
+        warnings: [],
+      }),
     ),
   );
   renderPortfolio();
@@ -489,25 +551,30 @@ test("confirma um candidato de provento retornado pela API", async () => {
     ...baseHandlers(),
     http.get("*/api/portfolios/p1/income-events", () => HttpResponse.json([])),
     http.get("*/api/portfolios/p1/income-events/candidates", () =>
-      HttpResponse.json([
-        {
-          candidateId: "c1",
-          ticker: "PETR4",
-          assetName: "Petrobras",
-          market: "BR",
-          assetType: "STOCK",
-          currency: "BRL",
-          type: "DIVIDEND",
-          source: "BRAPI",
-          unitAmount: 1.5,
-          eligibilityDate: "2026-09-01",
-          paymentDate: "2026-09-07",
-          eligibleQuantity: 15,
-          expectedAmount: 22.5,
-          confirmable: true,
-          alreadyRecorded: false,
-        },
-      ]),
+      HttpResponse.json({
+        candidates: [
+          {
+            candidateId: "c1",
+            ticker: "PETR4",
+            assetName: "Petrobras",
+            market: "BR",
+            assetType: "STOCK",
+            currency: "BRL",
+            type: "DIVIDEND",
+            source: "BRAPI",
+            unitAmount: 1.5,
+            eligibilityDate: "2026-09-01",
+            paymentDate: "2026-09-07",
+            eligibleQuantity: 15,
+            expectedAmount: 22.5,
+            confirmable: true,
+            alreadyRecorded: false,
+          },
+        ],
+        updatedAt: "2026-09-12T10:00:00Z",
+        stale: false,
+        warnings: [],
+      }),
     ),
     http.post(
       "*/api/portfolios/p1/income-events/confirmations",
@@ -531,4 +598,49 @@ test("confirma um candidato de provento retornado pela API", async () => {
 
   await waitFor(() => expect(body).toBeDefined());
   expect(body).toMatchObject({ candidateId: "c1", receivedAmount: "22.50" });
+});
+
+test("mantém candidatos visíveis quando parte dos proventos usa contingência", async () => {
+  server.use(
+    ...baseHandlers(),
+    http.get("*/api/portfolios/p1/income-events", () => HttpResponse.json([])),
+    http.get("*/api/portfolios/p1/income-events/candidates", () =>
+      HttpResponse.json({
+        candidates: [
+          {
+            candidateId: "c1",
+            ticker: "PETR4",
+            assetName: "Petrobras",
+            market: "BR",
+            assetType: "STOCK",
+            currency: "BRL",
+            type: "DIVIDEND",
+            source: "BRAPI",
+            unitAmount: 1.5,
+            eligibilityDate: "2026-09-01",
+            paymentDate: "2026-09-07",
+            eligibleQuantity: 15,
+            expectedAmount: 22.5,
+            confirmable: true,
+            alreadyRecorded: false,
+          },
+        ],
+        updatedAt: "2026-09-12T10:00:00Z",
+        stale: true,
+        warnings: [
+          { ticker: "VALE3", market: "BR", code: "BRAPI_RATE_LIMITED" },
+        ],
+      }),
+    ),
+  );
+  renderPortfolio();
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Proventos" }),
+  );
+  expect(
+    await screen.findByText("Exibindo os últimos dados disponíveis"),
+  ).toBeVisible();
+  expect(screen.getByText(/VALE3: o limite da Brapi/)).toBeVisible();
+  expect(screen.getByRole("button", { name: "Confirmar" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Manual" })).toBeEnabled();
 });

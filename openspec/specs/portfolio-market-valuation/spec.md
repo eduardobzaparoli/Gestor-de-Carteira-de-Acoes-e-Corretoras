@@ -22,7 +22,7 @@ O sistema SHALL disponibilizar `GET /api/portfolios/{portfolioId}/valuation` som
 - **THEN** o sistema responde respectivamente com `401` ou `403` em JSON e não consulta provedores nem revela dados privados
 
 ### Requirement: Valorização das posições abertas pela cotação atual
-O sistema SHALL derivar as posições a partir dos lançamentos efetivados e consultar a cotação mais recente disponível de cada posição aberta. Para cada posição, a resposta MUST conter ticker, nome, mercado, tipo, moeda, quantidade, preço médio, custo em custódia, preço atual, valor de mercado, ganho ou perda não realizado, rentabilidade percentual e percentual de alocação na moeda da posição. O preço atual e o valor de mercado MUST usar precisão decimal, sem arredondamento monetário prematuro.
+O sistema SHALL derivar as posições a partir dos lançamentos efetivados e consultar a cotação mais recente disponível de cada posição aberta. Para cada posição, a resposta MUST conter ticker, nome, mercado, tipo, moeda, quantidade, preço médio, custo em custódia, preço atual, valor de mercado, ganho ou perda não realizado, rentabilidade percentual e percentual de alocação consolidado na moeda-base `BRL`. O preço atual e o valor de mercado MUST usar precisão decimal, sem arredondamento monetário prematuro.
 
 #### Scenario: Posição aberta com cotação disponível
 - **WHEN** a carteira possui uma posição aberta e a cotação mais recente do mesmo ticker e moeda está disponível
@@ -37,19 +37,31 @@ O sistema SHALL derivar as posições a partir dos lançamentos efetivados e con
 - **THEN** o sistema responde com status `503` e código `ASSET_QUOTE_UNAVAILABLE`, sem devolver posições ou subtotais parciais
 
 ### Requirement: Totais e alocação segregados por moeda
-O sistema SHALL agrupar a valorização por moeda. Para cada moeda presente em posições abertas, o sistema MUST devolver valor investido, valor de mercado, ganho ou perda não realizado e rentabilidade percentual. O percentual de alocação de uma posição MUST ser calculado em relação ao valor de mercado total das posições com a mesma moeda. O sistema MUST preservar esses subtotais nativos sem converter seus valores. Além deles, a resposta MUST incluir um resumo consolidado em `BRL` quando houver posições abertas.
+O sistema SHALL manter valor investido, valor de mercado, ganho ou perda não realizado e rentabilidade em subtotais nativos separados por moeda. Para a composição da carteira, o sistema MUST converter o valor de mercado de cada posição para `BRL` com as mesmas taxas do resumo consolidado e calcular sua alocação contra o patrimônio consolidado positivo. Os percentuais públicos usados pela tabela e pelo gráfico MUST ser determinísticos, não negativos e fechar exatamente em `100%` após a precisão de apresentação; os subtotais nativos MUST permanecer inalterados.
 
 #### Scenario: Carteira possui ativos em BRL e USD
 - **WHEN** a carteira possui posições abertas em reais e dólares
-- **THEN** o sistema retorna subtotais independentes para `BRL` e `USD` e também retorna o resumo consolidado em `BRL`
+- **THEN** o sistema retorna subtotais independentes para `BRL` e `USD`, resumo consolidado em `BRL` e uma única distribuição percentual calculada sobre os valores de mercado convertidos
 
 #### Scenario: Alocação de posições na mesma moeda
 - **WHEN** duas ou mais posições abertas possuem a mesma moeda
-- **THEN** o percentual de alocação de cada uma é seu valor de mercado dividido pelo valor de mercado total daquela moeda, multiplicado por cem
+- **THEN** o percentual de cada posição corresponde ao seu valor de mercado em `BRL` dividido pelo patrimônio consolidado em `BRL`, multiplicado por cem
 
 #### Scenario: Posição é a única na moeda
-- **WHEN** uma posição é a única posição aberta em sua moeda
-- **THEN** seu percentual de alocação é `100`
+- **WHEN** uma posição é a única posição aberta em sua moeda, mas há posições abertas em outra moeda
+- **THEN** sua alocação representa somente sua participação no patrimônio consolidado e não é artificialmente elevada para `100%`
+
+#### Scenario: Única posição da carteira
+- **WHEN** a carteira possui somente uma posição aberta com valor de mercado positivo
+- **THEN** a alocação dessa posição é `100%`
+
+#### Scenario: Fechamento dos percentuais apresentados
+- **WHEN** divisões periódicas ou arredondamento na precisão pública produziriam diferença residual
+- **THEN** o sistema distribui deterministicamente o resíduo sem alterar valores monetários e a soma dos percentuais retornados é exatamente `100%`
+
+#### Scenario: Ordem não altera o resultado
+- **WHEN** as mesmas posições são processadas em ordens diferentes
+- **THEN** cada ticker recebe o mesmo percentual e o fechamento em `100%` permanece estável
 
 ### Requirement: Consulta resiliente e sem persistência própria
 O sistema SHALL reutilizar temporariamente cotações equivalentes já obtidas para o mesmo mercado e ticker, respeitando a janela de cache configurada. O sistema SHALL consultar a Brapi para posições `BR` e a Twelve Data para posições `US`. O sistema SHALL reutilizar temporariamente uma taxa cambial equivalente para a mesma moeda de origem, moeda-base e data de referência, respeitando sua janela de cache configurada. A consulta MUST ser atômica para a resposta: se qualquer cotação de ativo ou conversão cambial necessária falhar por indisponibilidade ou limite do provedor, o sistema MUST responder `503` com o código público específico e não retornar totais parciais. O sistema MUST NOT persistir cotações, taxas cambiais, posições ou indicadores de valorização.

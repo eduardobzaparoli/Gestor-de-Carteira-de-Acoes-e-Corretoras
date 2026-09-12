@@ -25,6 +25,8 @@ public class BrokerageIntegrationProperties {
 	private Duration assetQuoteCacheTtl = Duration.ofMinutes(1);
 	private Duration exchangeRateCacheTtl = Duration.ofHours(1);
 	private Duration incomeCandidateCacheTtl = Duration.ofMinutes(10);
+	private Duration incomeProviderCacheTtl = Duration.ofMinutes(30);
+	private Duration incomeProviderStaleTtl = Duration.ofHours(6);
 	private int historicalPriceWindowDays = 90;
 	private Duration historicalPriceCacheTtl = Duration.ofMinutes(15);
 
@@ -112,6 +114,10 @@ public class BrokerageIntegrationProperties {
 	public void setExchangeRateCacheTtl(Duration exchangeRateCacheTtl) { this.exchangeRateCacheTtl = exchangeRateCacheTtl; }
 	public Duration getIncomeCandidateCacheTtl() { return incomeCandidateCacheTtl; }
 	public void setIncomeCandidateCacheTtl(Duration incomeCandidateCacheTtl) { this.incomeCandidateCacheTtl = incomeCandidateCacheTtl; }
+	public Duration getIncomeProviderCacheTtl() { return incomeProviderCacheTtl; }
+	public void setIncomeProviderCacheTtl(Duration incomeProviderCacheTtl) { this.incomeProviderCacheTtl = incomeProviderCacheTtl; }
+	public Duration getIncomeProviderStaleTtl() { return incomeProviderStaleTtl; }
+	public void setIncomeProviderStaleTtl(Duration incomeProviderStaleTtl) { this.incomeProviderStaleTtl = incomeProviderStaleTtl; }
 	public int getHistoricalPriceWindowDays() { return historicalPriceWindowDays; }
 	public void setHistoricalPriceWindowDays(int historicalPriceWindowDays) { this.historicalPriceWindowDays = historicalPriceWindowDays; }
 	public Duration getHistoricalPriceCacheTtl() { return historicalPriceCacheTtl; }

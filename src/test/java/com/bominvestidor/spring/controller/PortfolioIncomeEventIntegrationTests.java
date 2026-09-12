@@ -101,15 +101,17 @@ class PortfolioIncomeEventIntegrationTests {
 
 	@Test
 	void queriesProviderCandidatesAndMapsUnavailableProviderWithoutInternalDetails() throws Exception {
-		clock.set(Instant.now()); Session session = session(); UUID portfolioId = portfolio(session.user()).getId(); buy(session, portfolioId, "5");
+		Instant now = Instant.now(); clock.set(now); Session session = session(); UUID portfolioId = portfolio(session.user()).getId(); buy(session, portfolioId, "5");
 		mockMvc.perform(get(path(portfolioId)+"/candidates").param("market", "BR").header("Authorization", bearer(session)))
-			.andExpect(status().isOk()).andExpect(jsonPath("$[0].ticker").value("PETR4")).andExpect(jsonPath("$[0].eligibleQuantity").value(5))
-			.andExpect(jsonPath("$[0].expectedAmount").value(5)).andExpect(jsonPath("$[0].confirmable").value(true));
+			.andExpect(status().isOk()).andExpect(jsonPath("$.candidates[0].ticker").value("PETR4")).andExpect(jsonPath("$.candidates[0].eligibleQuantity").value(5))
+			.andExpect(jsonPath("$.candidates[0].expectedAmount").value(5)).andExpect(jsonPath("$.candidates[0].confirmable").value(true))
+			.andExpect(jsonPath("$.stale").value(false)).andExpect(jsonPath("$.warnings").isEmpty());
 		INCOME_PROVIDER_AVAILABLE.set(false);
 		try {
+			clock.set(now.plus(java.time.Duration.ofMinutes(31)));
 			mockMvc.perform(get(path(portfolioId)+"/candidates").param("market", "BR").header("Authorization", bearer(session)))
-				.andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.code").value("BRAPI_PROVIDER_UNAVAILABLE"))
-				.andExpect(jsonPath("$.message").value("Provider unavailable")).andExpect(jsonPath("$.rawResponse").doesNotExist());
+				.andExpect(status().isOk()).andExpect(jsonPath("$.candidates[0].ticker").value("PETR4"))
+				.andExpect(jsonPath("$.stale").value(true)).andExpect(jsonPath("$.warnings[0].code").value("BRAPI_PROVIDER_UNAVAILABLE"));
 		} finally { INCOME_PROVIDER_AVAILABLE.set(true); }
 	}
 

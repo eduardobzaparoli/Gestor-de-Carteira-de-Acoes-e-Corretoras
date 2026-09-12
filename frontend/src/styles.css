@@ -452,6 +452,17 @@ input.control::placeholder {
 .error-state p {
   margin: 0.25rem 0 0.8rem;
 }
+.warning-state {
+  color: var(--warning-text);
+  background: var(--warning-bg);
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+  border-radius: 14px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+.warning-state p {
+  margin: 0.3rem 0 0.8rem;
+}
 .dialog {
   width: min(620px, calc(100% - 2rem));
   max-height: calc(100vh - 2rem);

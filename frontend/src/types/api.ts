@@ -222,6 +222,17 @@ export interface IncomeCandidate {
   confirmable: boolean;
   alreadyRecorded: boolean;
 }
+export interface IncomeCandidateWarning {
+  ticker: string;
+  market: AssetMarket;
+  code: string;
+}
+export interface IncomeCandidatesResponse {
+  candidates: IncomeCandidate[];
+  updatedAt: string;
+  stale: boolean;
+  warnings: IncomeCandidateWarning[];
+}
 export interface IncomeEvent {
   id: string;
   ticker: string;
