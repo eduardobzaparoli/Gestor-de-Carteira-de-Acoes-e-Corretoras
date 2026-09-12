@@ -12,12 +12,14 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.bominvestidor.spring.dto.portfolio.PortfolioCreateRequest;
 import com.bominvestidor.spring.dto.portfolio.PortfolioResponse;
+import com.bominvestidor.spring.dto.portfolio.PortfolioUpdateRequest;
 import com.bominvestidor.spring.service.portfolio.PortfolioService;
 
 import jakarta.validation.Valid;
@@ -47,6 +49,12 @@ public class PortfolioController {
 	@GetMapping("/{id}")
 	public PortfolioResponse findById(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
 		return portfolioService.findById(ownerId(jwt), id);
+	}
+
+	@PutMapping("/{id}")
+	public PortfolioResponse update(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+			@Valid @RequestBody PortfolioUpdateRequest request) {
+		return portfolioService.update(ownerId(jwt), id, request);
 	}
 
 	@DeleteMapping("/{id}")

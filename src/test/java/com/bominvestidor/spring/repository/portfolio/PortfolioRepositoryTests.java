@@ -53,6 +53,19 @@ class PortfolioRepositoryTests {
 						.map(PortfolioEntity::getName).toList());
 	}
 
+	@Test
+	void databaseConstraintProtectsUpdateAgainstDuplicateNormalizedName() {
+		UserEntity owner = saveUser();
+		BrokerageEntity brokerage = saveBrokerage(owner);
+		portfolioRepository.saveAndFlush(portfolio(owner, brokerage, "Primeira", "primeira", NOW));
+		PortfolioEntity second = portfolioRepository.saveAndFlush(
+				portfolio(owner, brokerage, "Segunda", "segunda", NOW.plusSeconds(1)));
+
+		second.updateDetails("PRIMEIRA", "primeira", brokerage);
+
+		assertThrows(DataIntegrityViolationException.class, () -> portfolioRepository.saveAndFlush(second));
+	}
+
 	private UserEntity saveUser() {
 		UUID id = UUID.randomUUID();
 		return userRepository.saveAndFlush(new UserEntity(id, "Investidor", id + "@example.com", "hash",

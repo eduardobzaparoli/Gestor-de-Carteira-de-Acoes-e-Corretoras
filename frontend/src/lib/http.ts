@@ -165,6 +165,11 @@ export const apiMessage = (error: unknown) => {
       "Já existe uma corretora com esse apelido.",
     BROKERAGE_HAS_PORTFOLIOS:
       "Esta corretora está vinculada a uma carteira. Exclua a carteira primeiro.",
+    PORTFOLIO_NAME_ALREADY_REGISTERED: "Já existe uma carteira com esse nome.",
+    PORTFOLIO_NOT_FOUND:
+      "A carteira não foi encontrada ou não está mais disponível.",
+    BROKERAGE_NOT_FOUND:
+      "A corretora selecionada não foi encontrada ou não está mais disponível.",
     TRANSACTION_CANNOT_BE_EDITED:
       "Somente lançamentos pendentes podem ser editados.",
     TRANSACTION_CANNOT_BE_CANCELLED:

@@ -23,10 +23,26 @@ O health check público está em `GET /actuator/health` e expõe somente o estad
 - `POST /api/portfolios/{portfolioId}/transactions` recebe `registeredAssetId`, tipo, data, quantidade, preço unitário e custos. A identidade do ativo é copiada do catálogo pertencente ao investidor; ticker, nome, mercado e moeda não são aceitos livremente.
 - `GET /api/brokerages/cnpj?cnpj=<cnpj>` consulta os dados oficiais da empresa antes do cadastro e retorna `cnpj`, `legalName` e `tradeName`.
 - `DELETE /api/brokerages/{id}` exclui uma corretora do investidor quando ela não está vinculada a nenhuma carteira. Uma corretora vinculada responde com `409` e código `BROKERAGE_HAS_PORTFOLIOS`.
+- `PUT /api/portfolios/{id}` atualiza os dados cadastrais de uma carteira do investidor. O corpo deve conter `name` e `brokerageId`; lançamentos, posições, proprietário, identificador e data de criação são preservados.
 - `PUT /api/portfolios/{portfolioId}/transactions/{transactionId}` atualiza tipo, data, quantidade, preço unitário e custos de um lançamento ainda pendente. Lançamentos efetivados ou cancelados respondem com `409` e código `TRANSACTION_CANNOT_BE_EDITED`.
 - `GET /api/portfolios/{portfolioId}/exchange-rates?sourceCurrency=USD&date=aaaa-mm-dd` retorna a taxa da moeda informada para BRL na data solicitada, após validar que a carteira pertence ao investidor autenticado.
 
 Datas enviadas à API permanecem no formato ISO `aaaa-mm-dd`; a conversão para `dd/mm/aaaa` é responsabilidade da interface. Valores decimais são enviados sem símbolo monetário e com ponto como separador decimal. A interface apresenta valores monetários em BRL; quando o ativo usa outra moeda, converte o valor somente para exibição e restaura a moeda nativa antes de enviar comandos financeiros à API.
+
+### Exemplo de edição de carteira
+
+```http
+PUT /api/portfolios/7ca0af25-ffbf-4407-98b5-a1d6638d4a55
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "name": "Reserva global",
+  "brokerageId": "241ac87b-b468-4ec3-98ab-2b60d41f680e"
+}
+```
+
+O sucesso retorna `200` com a carteira atualizada. Nome duplicado retorna `409 PORTFOLIO_NAME_ALREADY_REGISTERED`; carteira alheia ou inexistente retorna `404 PORTFOLIO_NOT_FOUND`; corretora alheia ou inexistente retorna `404 BROKERAGE_NOT_FOUND`. Campos ausentes ou inválidos retornam `400 VALIDATION_ERROR`.
 
 ## Provedores de dados de mercado
 

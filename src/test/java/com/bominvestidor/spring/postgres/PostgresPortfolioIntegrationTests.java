@@ -33,6 +33,7 @@ import com.bominvestidor.spring.domain.evolution.HistoricalAssetPriceSeries;
 import com.bominvestidor.spring.domain.user.UserRole;
 import com.bominvestidor.spring.dto.auth.RegisterRequest;
 import com.bominvestidor.spring.dto.portfolio.PortfolioCreateRequest;
+import com.bominvestidor.spring.dto.portfolio.PortfolioUpdateRequest;
 import com.bominvestidor.spring.dto.transaction.PortfolioTransactionCreateRequest;
 import com.bominvestidor.spring.dto.asset.RegisteredAssetCreateRequest;
 import com.bominvestidor.spring.dto.income.ManualIncomeEventCreateRequest;
@@ -91,6 +92,7 @@ class PostgresPortfolioIntegrationTests {
 		String email = "postgres-portfolio-" + UUID.randomUUID() + "@example.com";
 		UserEntity user = null;
 		BrokerageEntity brokerage = null;
+		BrokerageEntity updatedBrokerage = null;
 		UUID portfolioId = null;
 
 		try {
@@ -117,6 +119,13 @@ class PostgresPortfolioIntegrationTests {
 			var registered = registeredAssetService.register(userId, new RegisteredAssetCreateRequest(assets.get(0).selectionId()));
 			transactionService.create(userId, portfolioId, new PortfolioTransactionCreateRequest(registered.id(), TransactionType.BUY, LocalDate.now().minusDays(1), new BigDecimal("2"),
 					new BigDecimal("35.10"), null));
+			assertEquals(1, jdbcTemplate.queryForObject(
+					"select count(*) from portfolio_transactions where portfolio_id = ?", Integer.class, portfolioId));
+			updatedBrokerage = saveBrokerage(user);
+			var updated = portfolioService.update(userId, portfolioId,
+					new PortfolioUpdateRequest("Carteira PostgreSQL atualizada", updatedBrokerage.getId()));
+			assertEquals("Carteira PostgreSQL atualizada", updated.name());
+			assertEquals(updatedBrokerage.getId(), updated.brokerage().id());
 			assertEquals(1, jdbcTemplate.queryForObject(
 					"select count(*) from portfolio_transactions where portfolio_id = ?", Integer.class, portfolioId));
 			assertEquals(0, new BigDecimal("35.10").compareTo(positionService.findAll(userId, portfolioId).get(0).averagePrice()));
@@ -167,6 +176,9 @@ class PostgresPortfolioIntegrationTests {
 			}
 			if (brokerage != null) {
 				brokerageRepository.deleteById(brokerage.getId());
+			}
+			if (updatedBrokerage != null) {
+				brokerageRepository.deleteById(updatedBrokerage.getId());
 			}
 			if (user != null) {
 				registeredAssetRepository.deleteAll();
@@ -225,8 +237,10 @@ class PostgresPortfolioIntegrationTests {
 
 	private BrokerageEntity saveBrokerage(UserEntity owner) {
 		Instant now = Instant.now();
-		return brokerageRepository.saveAndFlush(new BrokerageEntity(UUID.randomUUID(), owner, "PostgreSQL", "postgresql",
-				"04252011000110", "Razão Social", "Nome", "EM FUNCIONAMENTO NORMAL", "CORRETORAS", "04547000",
+		UUID id = UUID.randomUUID();
+		String suffix = id.toString().replace("-", "");
+		return brokerageRepository.saveAndFlush(new BrokerageEntity(id, owner, "PostgreSQL " + suffix, "postgresql " + suffix,
+				suffix.substring(0, 14), "Razão Social", "Nome", "EM FUNCIONAMENTO NORMAL", "CORRETORAS", "04547000",
 				"Rua", "Bairro", "1", null, "São Paulo", "SP", now, now));
 	}
 

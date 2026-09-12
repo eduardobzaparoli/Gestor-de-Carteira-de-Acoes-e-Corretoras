@@ -130,3 +130,139 @@ test("mostra uma carteira retornada pela API", async () => {
   ).toBeInTheDocument();
   expect(screen.getByText("Principal")).toBeInTheDocument();
 });
+
+test("edita nome e corretora e atualiza o cartão sem recarregar a página", async () => {
+  setSession(investor);
+  let requestBody: Record<string, string> | undefined;
+  let portfolio = {
+    id: "p1",
+    name: "Longo prazo",
+    brokerage: {
+      id: "b1",
+      nickname: "Principal",
+      cnpj: "61384004000105",
+      legalName: "Corretora Principal",
+    },
+    createdAt: "2026-09-01T10:00:00Z",
+    updatedAt: "2026-09-07T10:00:00Z",
+  };
+  const brokerages = [
+    { id: "b1", nickname: "Principal", cnpj: "61384004000105" },
+    { id: "b2", nickname: "Internacional", cnpj: "04252011000110" },
+  ].map((item) => ({
+    ...item,
+    legalName: `Corretora ${item.nickname}`,
+    tradeName: item.nickname,
+    registrationStatus: "ATIVA",
+    cvmParticipantCategory: "Corretora",
+    address: {
+      cep: "01310100",
+      street: "Avenida Paulista",
+      neighborhood: "Bela Vista",
+      number: "1000",
+      city: "São Paulo",
+      state: "SP",
+    },
+    createdAt: "2026-09-01T10:00:00Z",
+    updatedAt: "2026-09-01T10:00:00Z",
+  }));
+  server.use(
+    http.get("*/api/auth/me", () => HttpResponse.json(investor)),
+    http.get("*/api/portfolios", () => HttpResponse.json([portfolio])),
+    http.get("*/api/brokerages", () => HttpResponse.json(brokerages)),
+    http.put("*/api/portfolios/p1", async ({ request }) => {
+      requestBody = (await request.json()) as Record<string, string>;
+      portfolio = {
+        ...portfolio,
+        name: requestBody.name,
+        brokerage: {
+          id: "b2",
+          nickname: "Internacional",
+          cnpj: "04252011000110",
+          legalName: "Corretora Internacional",
+        },
+        updatedAt: "2026-09-12T12:00:00Z",
+      };
+      return HttpResponse.json(portfolio);
+    }),
+  );
+
+  renderApp(<PortfoliosPage />, "/app/carteiras");
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Editar Longo prazo" }),
+  );
+  const name = screen.getByLabelText("Nome da carteira");
+  expect(name).toHaveValue("Longo prazo");
+  expect(screen.getByLabelText("Corretora")).toHaveValue("b1");
+  await userEvent.clear(name);
+  await userEvent.type(name, "Reserva global");
+  await userEvent.selectOptions(screen.getByLabelText("Corretora"), "b2");
+  await userEvent.click(
+    screen.getByRole("button", { name: "Salvar alterações" }),
+  );
+
+  await waitFor(() =>
+    expect(requestBody).toEqual({
+      name: "Reserva global",
+      brokerageId: "b2",
+    }),
+  );
+  expect(
+    await screen.findByRole("heading", { name: "Reserva global" }),
+  ).toBeInTheDocument();
+  expect(screen.getByText("Internacional")).toBeInTheDocument();
+});
+
+test("mantém o formulário aberto e os valores quando a edição falha", async () => {
+  setSession(investor);
+  server.use(
+    http.get("*/api/auth/me", () => HttpResponse.json(investor)),
+    http.get("*/api/portfolios", () =>
+      HttpResponse.json([
+        {
+          id: "p1",
+          name: "Longo prazo",
+          brokerage: {
+            id: "b1",
+            nickname: "Principal",
+            cnpj: "1",
+            legalName: "Principal",
+          },
+          createdAt: "2026-09-01T10:00:00Z",
+          updatedAt: "2026-09-01T10:00:00Z",
+        },
+      ]),
+    ),
+    http.get("*/api/brokerages", () =>
+      HttpResponse.json([{ id: "b1", nickname: "Principal" }]),
+    ),
+    http.put("*/api/portfolios/p1", () =>
+      HttpResponse.json(
+        {
+          status: 409,
+          code: "PORTFOLIO_NAME_ALREADY_REGISTERED",
+          message: "Nome já cadastrado",
+          fieldErrors: [],
+        },
+        { status: 409 },
+      ),
+    ),
+  );
+
+  renderApp(<PortfoliosPage />, "/app/carteiras");
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Editar Longo prazo" }),
+  );
+  const name = screen.getByLabelText("Nome da carteira");
+  await userEvent.clear(name);
+  await userEvent.type(name, "Duplicada");
+  await userEvent.click(
+    screen.getByRole("button", { name: "Salvar alterações" }),
+  );
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Já existe uma carteira com esse nome.",
+  );
+  expect(name).toHaveValue("Duplicada");
+  expect(screen.getByRole("dialog")).toBeInTheDocument();
+});

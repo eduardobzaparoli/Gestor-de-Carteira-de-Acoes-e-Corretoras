@@ -850,6 +850,35 @@ input.control::placeholder {
   color: var(--muted);
   cursor: pointer;
 }
+.portfolio-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.portfolio-card__actions button {
+  width: 34px;
+  height: 34px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+.portfolio-card__actions button:hover,
+.portfolio-card__actions button:focus-visible {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.portfolio-card__actions .portfolio-card__delete:hover,
+.portfolio-card__actions .portfolio-card__delete:focus-visible {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
 .summary-strip {
   background: linear-gradient(135deg, var(--chrome), #6f3519);
   color: white;

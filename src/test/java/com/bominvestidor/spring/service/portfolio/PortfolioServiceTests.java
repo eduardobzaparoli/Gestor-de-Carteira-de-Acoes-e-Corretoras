@@ -24,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.bominvestidor.spring.domain.portfolio.Portfolio;
 import com.bominvestidor.spring.domain.user.UserRole;
 import com.bominvestidor.spring.dto.portfolio.PortfolioCreateRequest;
+import com.bominvestidor.spring.dto.portfolio.PortfolioUpdateRequest;
 import com.bominvestidor.spring.entity.brokerage.BrokerageEntity;
 import com.bominvestidor.spring.entity.portfolio.PortfolioEntity;
 import com.bominvestidor.spring.entity.user.UserEntity;
@@ -76,6 +77,24 @@ class PortfolioServiceTests {
 				() -> service.create(OWNER_ID, new PortfolioCreateRequest("Longo prazo", BROKERAGE_ID)));
 
 		verify(persistenceService, never()).save(any(), any(), any());
+	}
+
+	@Test
+	void updatesPortfolioWithNormalizedNameAndOwnedBrokerage() {
+		UUID portfolioId = UUID.randomUUID();
+		BrokerageEntity brokerage = brokerage(owner());
+		PortfolioEntity portfolio = portfolio(brokerage, "Rebalanceamento", "rebalanceamento", NOW);
+		when(brokerageRepository.findByIdAndOwner_Id(BROKERAGE_ID, OWNER_ID)).thenReturn(Optional.of(brokerage));
+		when(persistenceService.update(any(), any(), any(), any())).thenReturn(portfolio);
+
+		var response = service.update(OWNER_ID, portfolioId,
+				new PortfolioUpdateRequest("  Rebalanceamento  ", BROKERAGE_ID));
+
+		assertEquals("Rebalanceamento", response.name());
+		ArgumentCaptor<NormalizedPortfolioInput> input = ArgumentCaptor.forClass(NormalizedPortfolioInput.class);
+		verify(persistenceService).update(org.mockito.ArgumentMatchers.eq(portfolioId),
+				org.mockito.ArgumentMatchers.eq(OWNER_ID), input.capture(), org.mockito.ArgumentMatchers.eq(brokerage));
+		assertEquals("rebalanceamento", input.getValue().nameKey());
 	}
 
 	@Test
