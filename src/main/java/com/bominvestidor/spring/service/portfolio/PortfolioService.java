@@ -7,11 +7,13 @@ import java.util.UUID;
 
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.bominvestidor.spring.domain.portfolio.Portfolio;
 import com.bominvestidor.spring.domain.user.UserRole;
 import com.bominvestidor.spring.dto.portfolio.PortfolioCreateRequest;
 import com.bominvestidor.spring.dto.portfolio.PortfolioResponse;
+import com.bominvestidor.spring.dto.portfolio.PortfolioUpdateRequest;
 import com.bominvestidor.spring.entity.brokerage.BrokerageEntity;
 import com.bominvestidor.spring.entity.portfolio.PortfolioEntity;
 import com.bominvestidor.spring.entity.user.UserEntity;
@@ -50,6 +52,16 @@ public class PortfolioService {
 		Instant now = clock.instant();
 		Portfolio portfolio = new Portfolio(UUID.randomUUID(), ownerId, brokerage.getId(), input.name(), input.nameKey(), now, now);
 		return mapper.toResponse(persistenceService.save(portfolio, owner, brokerage), brokerage);
+	}
+
+	@Transactional
+	public PortfolioResponse update(UUID ownerId, UUID id, PortfolioUpdateRequest request) {
+		requireInvestor(ownerId);
+		persistenceService.findEntityByIdAndOwner(id, ownerId);
+		NormalizedPortfolioInput input = normalizer.normalize(request);
+		BrokerageEntity brokerage = brokerageRepository.findByIdAndOwner_Id(input.brokerageId(), ownerId)
+				.orElseThrow(BrokerageNotFoundException::new);
+		return toResponse(persistenceService.update(id, ownerId, input, brokerage));
 	}
 
 	public List<PortfolioResponse> findAll(UUID ownerId) {

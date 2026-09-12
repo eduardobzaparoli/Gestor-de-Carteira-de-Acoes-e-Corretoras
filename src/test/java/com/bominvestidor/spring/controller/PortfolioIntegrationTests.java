@@ -4,6 +4,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -73,6 +74,22 @@ class PortfolioIntegrationTests {
 				.andExpect(status().isOk()).andExpect(jsonPath("$[0].name").value("Carteira de longo prazo"))
 				.andExpect(jsonPath("$[1].name").value("Carteira para renda"));
 
+		BrokerageEntity newBrokerage = saveBrokerage(investor.user());
+		mockMvc.perform(put("/api/portfolios/{id}", id).header("Authorization", "Bearer " + investor.token())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"name\":\"  Carteira revisada  \",\"brokerageId\":\"" + newBrokerage.getId() + "\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.id").value(id))
+				.andExpect(jsonPath("$.name").value("Carteira revisada"))
+				.andExpect(jsonPath("$.brokerage.id").value(newBrokerage.getId().toString()));
+		mockMvc.perform(put("/api/portfolios/{id}", id).header("Authorization", "Bearer " + investor.token())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"name\":\"CARTEIRA PARA RENDA\",\"brokerageId\":\"" + newBrokerage.getId() + "\"}"))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.code").value("PORTFOLIO_NAME_ALREADY_REGISTERED"));
+		mockMvc.perform(get("/api/portfolios/{id}", id).header("Authorization", "Bearer " + investor.token()))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.name").value("Carteira revisada"));
+
 		mockMvc.perform(delete("/api/portfolios/{id}", id).header("Authorization", "Bearer " + investor.token()))
 				.andExpect(status().isNoContent());
 		mockMvc.perform(get("/api/portfolios/{id}", id).header("Authorization", "Bearer " + investor.token()))
@@ -100,6 +117,14 @@ class PortfolioIntegrationTests {
 
 		mockMvc.perform(get("/api/portfolios/{id}", id).header("Authorization", "Bearer " + second.token()))
 				.andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("PORTFOLIO_NOT_FOUND"));
+		mockMvc.perform(put("/api/portfolios/{id}", id).header("Authorization", "Bearer " + second.token())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"name\":\"Tentativa\",\"brokerageId\":\"" + secondBrokerage.getId() + "\"}"))
+				.andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("PORTFOLIO_NOT_FOUND"));
+		mockMvc.perform(put("/api/portfolios/{id}", id).header("Authorization", "Bearer " + first.token())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"name\":\"Tentativa\",\"brokerageId\":\"" + secondBrokerage.getId() + "\"}"))
+				.andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("BROKERAGE_NOT_FOUND"));
 	}
 
 	@Test
@@ -110,6 +135,10 @@ class PortfolioIntegrationTests {
 				.claim("role", UserRole.ADMIN.name()).header("alg", "none").build();
 		mockMvc.perform(get("/api/portfolios").with(jwt().jwt(admin))).andExpect(status().isForbidden())
 				.andExpect(jsonPath("$.code").value("FORBIDDEN"));
+		mockMvc.perform(put("/api/portfolios/{id}", UUID.randomUUID()).with(jwt().jwt(admin))
+				.contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Carteira\",\"brokerageId\":\""
+						+ UUID.randomUUID() + "\"}"))
+				.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
 
 		Session investor = registerAndLogin();
 		mockMvc.perform(post("/api/portfolios").header("Authorization", "Bearer " + investor.token())
@@ -130,8 +159,9 @@ class PortfolioIntegrationTests {
 	private BrokerageEntity saveBrokerage(UserEntity owner) {
 		UUID id = UUID.randomUUID();
 		Instant now = Instant.now();
+		String cnpj = id.toString().replace("-", "").substring(0, 14);
 		return brokerageRepository.saveAndFlush(new BrokerageEntity(id, owner, "Corretora " + id, "corretora " + id,
-				"04252011000110", "Razão Social", "Nome", "EM FUNCIONAMENTO NORMAL", "CORRETORAS", "04547000",
+				cnpj, "Razão Social", "Nome", "EM FUNCIONAMENTO NORMAL", "CORRETORAS", "04547000",
 				"Rua", "Bairro", "1", null, "São Paulo", "SP", now, now));
 	}
 

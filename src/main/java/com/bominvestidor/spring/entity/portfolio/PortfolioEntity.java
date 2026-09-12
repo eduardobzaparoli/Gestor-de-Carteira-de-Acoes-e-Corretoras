@@ -31,7 +31,7 @@ public class PortfolioEntity {
 	private UserEntity owner;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
-	@JoinColumn(name = "brokerage_id", nullable = false, updatable = false)
+	@JoinColumn(name = "brokerage_id", nullable = false)
 	private BrokerageEntity brokerage;
 
 	@Column(nullable = false, length = 100)
@@ -77,6 +77,12 @@ public class PortfolioEntity {
 	@PreUpdate
 	void preUpdate() {
 		updatedAt = Instant.now();
+	}
+
+	public void updateDetails(String name, String nameKey, BrokerageEntity brokerage) {
+		this.name = name;
+		this.nameKey = nameKey;
+		this.brokerage = brokerage;
 	}
 
 	public UUID getId() { return id; }

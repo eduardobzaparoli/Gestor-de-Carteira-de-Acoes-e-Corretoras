@@ -49,6 +49,25 @@ public class PortfolioPersistenceService {
 		}
 	}
 
+	@Transactional
+	public PortfolioEntity update(UUID id, UUID ownerId, NormalizedPortfolioInput input, BrokerageEntity brokerage) {
+		PortfolioEntity portfolio = portfolioRepository.findByIdAndOwner_Id(id, ownerId)
+				.orElseThrow(PortfolioNotFoundException::new);
+		if (portfolioRepository.existsByOwner_IdAndNameKeyAndIdNot(ownerId, input.nameKey(), id)) {
+			throw duplicateName();
+		}
+		portfolio.updateDetails(input.name(), input.nameKey(), brokerage);
+		try {
+			return portfolioRepository.saveAndFlush(portfolio);
+		}
+		catch (DataIntegrityViolationException exception) {
+			if (NAME_CONSTRAINT.equalsIgnoreCase(findConstraintName(exception))) {
+				throw duplicateName();
+			}
+			throw exception;
+		}
+	}
+
 	@Transactional(readOnly = true)
 	public List<PortfolioEntity> findAllEntitiesByOwner(UUID ownerId) {
 		return portfolioRepository.findAllByOwner_IdOrderByCreatedAtAscIdAsc(ownerId);
