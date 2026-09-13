@@ -120,6 +120,12 @@ public class UserEntity {
 		this.role = role;
 	}
 
+	public void updateProfile(String name, String email, String passwordHash) {
+		this.name = name;
+		this.email = email;
+		this.passwordHash = passwordHash;
+	}
+
 	public void changeStatus(UserStatus status) {
 		this.status = status;
 	}

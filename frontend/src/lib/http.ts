@@ -29,6 +29,8 @@ export const localizedFieldMessage = (field: string, message: string) => {
     name: "nome",
     email: "e-mail",
     password: "senha",
+    currentPassword: "senha atual",
+    newPassword: "nova senha",
     role: "papel",
     nickname: "apelido",
     cnpj: "CNPJ",
@@ -46,6 +48,10 @@ export const localizedFieldMessage = (field: string, message: string) => {
   };
   const label = labels[field] ?? "campo";
   const normalized = message.toLowerCase();
+  if (normalized.includes("current password is invalid"))
+    return "A senha atual está incorreta.";
+  if (normalized.includes("must be different from current password"))
+    return "A nova senha deve ser diferente da senha atual.";
   if (
     normalized.includes("required") ||
     normalized.includes("must not be blank") ||

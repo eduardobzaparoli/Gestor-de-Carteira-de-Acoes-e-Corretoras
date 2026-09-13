@@ -31,6 +31,25 @@ test("abre o catálogo de ativos pela rota protegida do investidor", async () =>
   expect(screen.getByRole("link", { name: "Ativos" })).toBeInTheDocument();
 });
 
+test("abre o perfil ao clicar na identidade do investidor", async () => {
+  setSession(investor);
+  server.use(
+    http.get("*/api/auth/me", () => HttpResponse.json(investor)),
+    http.get("*/api/portfolios", () => HttpResponse.json([])),
+    http.get("*/api/brokerages", () => HttpResponse.json([])),
+  );
+  renderApp(<App />, "/app/carteiras");
+  await screen.findByRole("heading", { name: "Olá, Ana" });
+
+  await userEvent.click(
+    screen.getByRole("link", { name: `Abrir perfil de ${investor.name}` }),
+  );
+
+  expect(
+    await screen.findByRole("heading", { name: "Perfil do investidor" }),
+  ).toBeInTheDocument();
+});
+
 test("a marca leva o investidor de volta à visão geral", async () => {
   setSession(investor);
   server.use(
@@ -75,4 +94,7 @@ test("redireciona administrador para sua área sem expor finanças", async () =>
     await screen.findByRole("heading", { name: "Gestão de usuários" }),
   ).toBeInTheDocument();
   expect(screen.queryByText("Carteiras")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("link", { name: /Abrir perfil/i }),
+  ).not.toBeInTheDocument();
 });

@@ -50,6 +50,11 @@ const AdminUsersPage = lazy(() =>
     default: module.AdminUsersPage,
   })),
 );
+const ProfilePage = lazy(() =>
+  import("../features/profile/ProfilePage").then((module) => ({
+    default: module.ProfilePage,
+  })),
+);
 
 const routeFallback = (
   <div className="app-loading">
@@ -155,6 +160,7 @@ export function App() {
             <Route path="/app/carteiras" element={<PortfoliosPage />} />
             <Route path="/app/ativos" element={<AssetsPage />} />
             <Route path="/app/corretoras" element={<BrokeragesPage />} />
+            <Route path="/app/perfil" element={<ProfilePage />} />
             <Route
               path="/app/carteiras/:portfolioId"
               element={<PortfolioPage />}

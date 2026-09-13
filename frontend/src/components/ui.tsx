@@ -53,23 +53,31 @@ export function Field({
   error?: string;
   hint?: string;
 }) {
-  const id = props.id ?? props.name;
+  const generatedId = useId();
+  const id = props.id ?? props.name ?? generatedId;
+  const describedBy = [
+    props["aria-describedby"],
+    hint ? `${id}-hint` : undefined,
+    error ? `${id}-error` : undefined,
+  ]
+    .filter(Boolean)
+    .join(" ");
   return (
-    <label className="field" htmlFor={id}>
-      <span>{label}</span>
+    <div className="field">
+      <label htmlFor={id}>{label}</label>
       <input
+        {...props}
         id={id}
         aria-invalid={Boolean(error)}
-        aria-describedby={error ? `${id}-error` : undefined}
-        {...props}
+        aria-describedby={describedBy || undefined}
       />
-      {hint && <small>{hint}</small>}
+      {hint && <small id={`${id}-hint`}>{hint}</small>}
       {error && (
         <small className="field-error" id={`${id}-error`}>
           {error}
         </small>
       )}
-    </label>
+    </div>
   );
 }
 
