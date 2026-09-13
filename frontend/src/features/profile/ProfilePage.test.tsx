@@ -21,6 +21,32 @@ test("abre o perfil preenchido sem expor senha", async () => {
   expect(screen.getByLabelText("E-mail")).toHaveValue(investor.email);
   expect(screen.getByLabelText("Senha atual")).toHaveValue("");
   expect(screen.getByLabelText("Nova senha")).toHaveValue("");
+  expect(screen.getAllByRole("button", { name: "Mostrar senha" })).toHaveLength(
+    3,
+  );
+  expect(screen.getByLabelText("Senha atual")).toHaveAttribute(
+    "type",
+    "password",
+  );
+});
+
+test("controla a visibilidade de cada senha de forma independente", async () => {
+  openProfile();
+  const user = userEvent.setup();
+  const currentPassword = await screen.findByLabelText("Senha atual");
+  const newPassword = screen.getByLabelText("Nova senha");
+
+  await user.type(currentPassword, "password123");
+  await user.type(newPassword, "new-password");
+  await user.click(screen.getAllByRole("button", { name: "Mostrar senha" })[0]);
+
+  expect(currentPassword).toHaveAttribute("type", "text");
+  expect(currentPassword).toHaveValue("password123");
+  expect(newPassword).toHaveAttribute("type", "password");
+  expect(screen.getByRole("button", { name: "Ocultar senha" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
 });
 
 test("mantém o perfil acessível no tema escuro e em tela pequena", async () => {
@@ -59,6 +85,8 @@ test("atualiza o perfil e a identidade da navegação sem recarregar", async () 
   await user.type(screen.getByLabelText("Nome"), updated.name);
   await user.clear(screen.getByLabelText("E-mail"));
   await user.type(screen.getByLabelText("E-mail"), updated.email);
+  await user.click(screen.getAllByRole("button", { name: "Mostrar senha" })[0]);
+  expect(screen.getByLabelText("Senha atual")).toHaveAttribute("type", "text");
   await user.click(screen.getByRole("button", { name: "Salvar alterações" }));
 
   expect(
@@ -70,6 +98,10 @@ test("atualiza o perfil e a identidade da navegação sem recarregar", async () 
   expect(submitted).toEqual({ name: updated.name, email: updated.email });
   expect(sessionStorage.getItem("bom-investidor.session")).toContain(
     updated.email,
+  );
+  expect(screen.getByLabelText("Senha atual")).toHaveAttribute(
+    "type",
+    "password",
   );
 });
 
@@ -110,6 +142,8 @@ test("valida a confirmação local e limpa os campos sensíveis", async () => {
     screen.getByLabelText("Confirmar nova senha"),
     "different-password",
   );
+  await user.click(screen.getAllByRole("button", { name: "Mostrar senha" })[0]);
+  expect(screen.getByLabelText("Senha atual")).toHaveAttribute("type", "text");
   await user.click(screen.getByRole("button", { name: "Salvar alterações" }));
 
   expect(
@@ -121,6 +155,10 @@ test("valida a confirmação local e limpa os campos sensíveis", async () => {
   expect(screen.getByLabelText("Nova senha")).toHaveValue("");
   expect(screen.getByLabelText("Confirmar nova senha")).toHaveValue("");
   expect(screen.getByLabelText("Nome")).toHaveValue(investor.name);
+  expect(screen.getByLabelText("Senha atual")).toHaveAttribute(
+    "type",
+    "password",
+  );
 });
 
 test("traduz senha atual inválida e remove valores sensíveis após a API", async () => {

@@ -11,6 +11,8 @@ import {
   AlertCircle,
   CalendarDays,
   CheckCircle2,
+  Eye,
+  EyeOff,
   LoaderCircle,
   X,
 } from "lucide-react";
@@ -47,14 +49,25 @@ export function Field({
   label,
   error,
   hint,
+  type,
+  visibilityResetKey,
   ...props
 }: InputHTMLAttributes<HTMLInputElement> & {
   label: string;
   error?: string;
   hint?: string;
+  visibilityResetKey?: string | number;
 }) {
   const generatedId = useId();
   const id = props.id ?? props.name ?? generatedId;
+  const isPassword = type === "password";
+  const [passwordVisibility, setPasswordVisibility] = useState({
+    resetKey: visibilityResetKey,
+    visible: false,
+  });
+  const passwordVisible =
+    passwordVisibility.resetKey === visibilityResetKey &&
+    passwordVisibility.visible;
   const describedBy = [
     props["aria-describedby"],
     hint ? `${id}-hint` : undefined,
@@ -62,15 +75,48 @@ export function Field({
   ]
     .filter(Boolean)
     .join(" ");
+  const input = (
+    <input
+      {...props}
+      id={id}
+      type={isPassword && passwordVisible ? "text" : type}
+      aria-invalid={Boolean(error)}
+      aria-describedby={describedBy || undefined}
+    />
+  );
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
-      <input
-        {...props}
-        id={id}
-        aria-invalid={Boolean(error)}
-        aria-describedby={describedBy || undefined}
-      />
+      {isPassword ? (
+        <div className="password-field">
+          {input}
+          <button
+            className="password-field__toggle"
+            type="button"
+            aria-label={passwordVisible ? "Ocultar senha" : "Mostrar senha"}
+            aria-controls={id}
+            aria-pressed={passwordVisible}
+            onPointerDown={(event) => event.preventDefault()}
+            onClick={() =>
+              setPasswordVisibility((current) => ({
+                resetKey: visibilityResetKey,
+                visible:
+                  current.resetKey === visibilityResetKey
+                    ? !current.visible
+                    : true,
+              }))
+            }
+          >
+            {passwordVisible ? (
+              <EyeOff size={18} aria-hidden="true" />
+            ) : (
+              <Eye size={18} aria-hidden="true" />
+            )}
+          </button>
+        </div>
+      ) : (
+        input
+      )}
       {hint && <small id={`${id}-hint`}>{hint}</small>}
       {error && (
         <small className="field-error" id={`${id}-error`}>
