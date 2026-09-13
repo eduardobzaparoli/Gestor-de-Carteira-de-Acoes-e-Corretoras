@@ -13,6 +13,27 @@ Erros usam JSON com `timestamp`, `status`, `code`, `message`, `path` e `fieldErr
 
 O health check público está em `GET /actuator/health` e expõe somente o estado agregado.
 
+## Perfil do investidor
+
+`GET /api/auth/me` retorna `id`, `name`, `email` e `role` da conta vinculada ao token. Um investidor autenticado pode atualizar o próprio perfil por `PUT /api/auth/me`:
+
+```http
+PUT /api/auth/me
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "name": "Ana Investidora",
+  "email": "ana@example.com",
+  "currentPassword": "senha-atual",
+  "newPassword": "nova-senha-segura"
+}
+```
+
+`currentPassword` e `newPassword` devem ser omitidos quando a senha não será alterada. Para trocar a senha, ambos são obrigatórios, a senha atual precisa estar correta e a nova senha deve ser diferente e possuir entre 8 e 72 caracteres. O sucesso retorna `200` com os dados públicos atualizados e nunca inclui senha ou hash.
+
+Nome e e-mail são normalizados como no cadastro. Um e-mail pertencente a outra conta retorna `409 EMAIL_ALREADY_REGISTERED`, inclusive em conflito concorrente. Campos inválidos, senha atual incorreta ou repetição da senha retornam `400 VALIDATION_ERROR` com o campo correspondente em `fieldErrors`. A identidade é sempre obtida do token; o investidor não pode alterar identificador, papel ou estado por essa operação.
+
 ## Refinamentos usados pelo frontend
 
 - `GET /api/assets?market=BR|US` lista o catálogo privado, com filtro de mercado opcional. Cada item contém a última cotação armazenada e o instante da consulta.

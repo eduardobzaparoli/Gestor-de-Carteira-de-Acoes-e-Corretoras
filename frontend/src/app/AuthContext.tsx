@@ -9,7 +9,11 @@ import {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, setAccessToken } from "../lib/http";
-import type { AuthenticationResponse, PublicUser } from "../types/api";
+import type {
+  AuthenticationResponse,
+  ProfileUpdateRequest,
+  PublicUser,
+} from "../types/api";
 
 const STORAGE_KEY = "bom-investidor.session";
 type StoredSession = { token: string; expiresAt: string; user: PublicUser };
@@ -20,6 +24,7 @@ type AuthContextValue = {
   login: (email: string, password: string) => Promise<PublicUser>;
   logout: (reason?: string) => void;
   register: (name: string, email: string, password: string) => Promise<void>;
+  updateProfile: (request: ProfileUpdateRequest) => Promise<PublicUser>;
   reason?: string;
 };
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -105,9 +110,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ name, email, password }),
     });
   };
+  const updateProfile = async (request: ProfileUpdateRequest) => {
+    const updated = await api<PublicUser>("/api/auth/me", {
+      method: "PUT",
+      body: JSON.stringify(request),
+    });
+    const stored = readSession();
+    if (stored)
+      sessionStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ ...stored, user: updated }),
+      );
+    setUser(updated);
+    queryClient.setQueryData(["current-user"], updated);
+    return updated;
+  };
   return (
     <AuthContext.Provider
-      value={{ user, token, loading, login, logout, register, reason }}
+      value={{
+        user,
+        token,
+        loading,
+        login,
+        logout,
+        register,
+        updateProfile,
+        reason,
+      }}
     >
       {children}
     </AuthContext.Provider>

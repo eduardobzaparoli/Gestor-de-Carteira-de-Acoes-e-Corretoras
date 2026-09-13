@@ -6,6 +6,7 @@ import {
   Menu,
   TrendingUp,
   Users,
+  UserRound,
   WalletCards,
   X,
 } from "lucide-react";
@@ -57,8 +58,24 @@ export function Shell() {
         <span className="nav-label">Visão geral</span>
         {links}
         <div className="sidebar-user">
-          <strong>{user?.name}</strong>
-          <span>{user?.email}</span>
+          {user?.role === "INVESTOR" ? (
+            <NavLink
+              className="sidebar-profile"
+              to="/app/perfil"
+              aria-label={`Abrir perfil de ${user.name}`}
+            >
+              <UserRound size={18} aria-hidden="true" />
+              <span>
+                <strong>{user.name}</strong>
+                <small>{user.email}</small>
+              </span>
+            </NavLink>
+          ) : (
+            <div className="sidebar-identity">
+              <strong>{user?.name}</strong>
+              <span>{user?.email}</span>
+            </div>
+          )}
           <Button variant="ghost" onClick={() => logout()}>
             <LogOut size={17} />
             Sair
@@ -89,6 +106,16 @@ export function Shell() {
         {open && (
           <div className="mobile-menu">
             {links}
+            {user?.role === "INVESTOR" && (
+              <NavLink
+                className="mobile-profile-link"
+                to="/app/perfil"
+                onClick={() => setOpen(false)}
+              >
+                <UserRound size={19} />
+                Meu perfil
+              </NavLink>
+            )}
             <Button variant="ghost" onClick={() => logout()}>
               <LogOut size={17} />
               Sair

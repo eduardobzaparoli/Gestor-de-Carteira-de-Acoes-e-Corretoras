@@ -3,6 +3,7 @@ import { render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { AuthProvider } from "../app/AuthContext";
 import { ThemeProvider } from "../app/ThemeContext";
+import { ToastRegion } from "../components/ui";
 import type { PublicUser } from "../types/api";
 
 export const investor: PublicUser = {
@@ -36,7 +37,10 @@ export function renderApp(children: React.ReactNode, route = "/") {
     <ThemeProvider>
       <QueryClientProvider client={client}>
         <MemoryRouter initialEntries={[route]}>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            {children}
+            <ToastRegion />
+          </AuthProvider>
         </MemoryRouter>
       </QueryClientProvider>
     </ThemeProvider>,

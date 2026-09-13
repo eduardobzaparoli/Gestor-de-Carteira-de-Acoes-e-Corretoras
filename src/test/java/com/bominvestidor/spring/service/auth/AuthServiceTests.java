@@ -1,6 +1,7 @@
 package com.bominvestidor.spring.service.auth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -28,6 +29,7 @@ import com.bominvestidor.spring.domain.user.UserRole;
 import com.bominvestidor.spring.dto.auth.AuthenticationResponse;
 import com.bominvestidor.spring.dto.auth.LoginRequest;
 import com.bominvestidor.spring.dto.auth.RegisterRequest;
+import com.bominvestidor.spring.dto.auth.UpdateProfileRequest;
 import com.bominvestidor.spring.entity.user.UserEntity;
 import com.bominvestidor.spring.exception.AuthenticatedUserNotFoundException;
 import com.bominvestidor.spring.exception.DuplicateEmailException;
@@ -155,6 +157,116 @@ class AuthServiceTests {
 
 		assertThrows(AuthenticatedUserNotFoundException.class, () -> authService.currentUser(id.toString()));
 		assertThrows(AuthenticatedUserNotFoundException.class, () -> authService.currentUser("invalid-subject"));
+	}
+
+	@Test
+	void updatesNormalizedProfileWithoutChangingPasswordOrRole() {
+		UUID id = UUID.randomUUID();
+		UserEntity entity = new UserEntity(id, "Investidor", "old@example.com", "encoded-password",
+				UserRole.INVESTOR, NOW, NOW);
+		when(userRepository.findById(id)).thenReturn(Optional.of(entity));
+		when(userRepository.existsByEmailAndIdNot("new@example.com", id)).thenReturn(false);
+		when(userRepository.saveAndFlush(entity)).thenReturn(entity);
+
+		var response = authService.updateCurrentUser(id.toString(),
+				new UpdateProfileRequest("  Novo Nome  ", " NEW@EXAMPLE.COM ", null, null));
+
+		assertEquals("Novo Nome", response.name());
+		assertEquals("new@example.com", response.email());
+		assertEquals("encoded-password", entity.getPasswordHash());
+		assertEquals(UserRole.INVESTOR, entity.getRole());
+	}
+
+	@Test
+	void keepsOwnNormalizedEmailWithoutDuplicateLookup() {
+		UUID id = UUID.randomUUID();
+		UserEntity entity = new UserEntity(id, "Investidor", "investidor@example.com", "encoded-password",
+				UserRole.INVESTOR, NOW, NOW);
+		when(userRepository.findById(id)).thenReturn(Optional.of(entity));
+		when(userRepository.saveAndFlush(entity)).thenReturn(entity);
+
+		authService.updateCurrentUser(id.toString(),
+				new UpdateProfileRequest("Investidor Atualizado", " INVESTIDOR@EXAMPLE.COM ", null, null));
+
+		verify(userRepository, never()).existsByEmailAndIdNot(any(), any());
+		assertEquals("investidor@example.com", entity.getEmail());
+	}
+
+	@Test
+	void rejectsEmailOwnedByAnotherAccountBeforeMutatingProfile() {
+		UUID id = UUID.randomUUID();
+		UserEntity entity = new UserEntity(id, "Investidor", "old@example.com", "encoded-password",
+				UserRole.INVESTOR, NOW, NOW);
+		when(userRepository.findById(id)).thenReturn(Optional.of(entity));
+		when(userRepository.existsByEmailAndIdNot("used@example.com", id)).thenReturn(true);
+
+		assertThrows(DuplicateEmailException.class, () -> authService.updateCurrentUser(id.toString(),
+				new UpdateProfileRequest("Novo Nome", "used@example.com", null, null)));
+
+		assertEquals("Investidor", entity.getName());
+		assertEquals("old@example.com", entity.getEmail());
+		verify(userRepository, never()).saveAndFlush(any());
+	}
+
+	@Test
+	void changesPasswordOnlyAfterValidatingCurrentPassword() {
+		UUID id = UUID.randomUUID();
+		UserEntity entity = new UserEntity(id, "Investidor", "investidor@example.com", "old-hash",
+				UserRole.INVESTOR, NOW, NOW);
+		when(userRepository.findById(id)).thenReturn(Optional.of(entity));
+		when(passwordEncoder.matches("current-password", "old-hash")).thenReturn(true);
+		when(passwordEncoder.matches("new-password", "old-hash")).thenReturn(false);
+		when(passwordEncoder.encode("new-password")).thenReturn("new-hash");
+		when(userRepository.saveAndFlush(entity)).thenReturn(entity);
+
+		authService.updateCurrentUser(id.toString(), new UpdateProfileRequest("Investidor",
+				"investidor@example.com", "current-password", "new-password"));
+
+		assertEquals("new-hash", entity.getPasswordHash());
+		assertNotEquals("new-password", entity.getPasswordHash());
+	}
+
+	@Test
+	void rejectsMissingWrongOrRepeatedCurrentPasswordWithoutSaving() {
+		UUID id = UUID.randomUUID();
+		UserEntity entity = new UserEntity(id, "Investidor", "investidor@example.com", "old-hash",
+				UserRole.INVESTOR, NOW, NOW);
+		when(userRepository.findById(id)).thenReturn(Optional.of(entity));
+
+		InvalidUserDataException missing = assertThrows(InvalidUserDataException.class,
+				() -> authService.updateCurrentUser(id.toString(), new UpdateProfileRequest("Investidor",
+						"investidor@example.com", null, "new-password")));
+		assertEquals("currentPassword", missing.getField());
+
+		when(passwordEncoder.matches("wrong-password", "old-hash")).thenReturn(false);
+		InvalidUserDataException wrong = assertThrows(InvalidUserDataException.class,
+				() -> authService.updateCurrentUser(id.toString(), new UpdateProfileRequest("Investidor",
+						"investidor@example.com", "wrong-password", "new-password")));
+		assertEquals("currentPassword", wrong.getField());
+
+		when(passwordEncoder.matches("current-password", "old-hash")).thenReturn(true);
+		when(passwordEncoder.matches("same-password", "old-hash")).thenReturn(true);
+		InvalidUserDataException repeated = assertThrows(InvalidUserDataException.class,
+				() -> authService.updateCurrentUser(id.toString(), new UpdateProfileRequest("Investidor",
+						"investidor@example.com", "current-password", "same-password")));
+		assertEquals("newPassword", repeated.getField());
+		assertEquals("old-hash", entity.getPasswordHash());
+		verify(userRepository, never()).saveAndFlush(any());
+	}
+
+	@Test
+	void rejectsInvalidProfileAtomically() {
+		UUID id = UUID.randomUUID();
+		UserEntity entity = new UserEntity(id, "Investidor", "investidor@example.com", "old-hash",
+				UserRole.INVESTOR, NOW, NOW);
+		when(userRepository.findById(id)).thenReturn(Optional.of(entity));
+
+		assertThrows(InvalidUserDataException.class, () -> authService.updateCurrentUser(id.toString(),
+				new UpdateProfileRequest("   ", "changed@example.com", null, null)));
+
+		assertEquals("Investidor", entity.getName());
+		assertEquals("investidor@example.com", entity.getEmail());
+		verify(userRepository, never()).saveAndFlush(any());
 	}
 
 	private UserEntity userEntity(String email, String passwordHash) {

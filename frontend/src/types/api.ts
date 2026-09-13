@@ -28,6 +28,12 @@ export interface PublicUser {
   email: string;
   role: UserRole;
 }
+export interface ProfileUpdateRequest {
+  name: string;
+  email: string;
+  currentPassword?: string;
+  newPassword?: string;
+}
 export interface AuthenticationResponse {
   token: string;
   tokenType: string;

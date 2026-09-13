@@ -2,6 +2,7 @@ package com.bominvestidor.spring.service.auth;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -17,6 +18,7 @@ import com.bominvestidor.spring.domain.user.UserStatus;
 import com.bominvestidor.spring.dto.auth.AuthenticationResponse;
 import com.bominvestidor.spring.dto.auth.LoginRequest;
 import com.bominvestidor.spring.dto.auth.RegisterRequest;
+import com.bominvestidor.spring.dto.auth.UpdateProfileRequest;
 import com.bominvestidor.spring.dto.user.PublicUserResponse;
 import com.bominvestidor.spring.entity.user.UserEntity;
 import com.bominvestidor.spring.exception.AuthenticatedUserNotFoundException;
@@ -107,21 +109,45 @@ public class AuthService {
 
 	@Transactional(readOnly = true)
 	public PublicUserResponse currentUser(String subject) {
-		UUID userId;
-		try {
-			userId = UUID.fromString(subject);
-		}
-		catch (IllegalArgumentException exception) {
-			throw new AuthenticatedUserNotFoundException();
-		}
-
-		return userRepository.findById(userId)
+		return userRepository.findById(authenticatedUserId(subject))
 				.map(userMapper::toDomain)
 				.map(userMapper::toPublicResponse)
 				.orElseThrow(AuthenticatedUserNotFoundException::new);
 	}
 
+	@Transactional
+	public PublicUserResponse updateCurrentUser(String subject, UpdateProfileRequest request) {
+		UUID userId = authenticatedUserId(subject);
+		UserEntity user = userRepository.findById(userId)
+				.orElseThrow(AuthenticatedUserNotFoundException::new);
+		String name = normalizer.normalizeName(request.name());
+		String email = normalizer.normalizeEmail(request.email());
+		validateIdentity(name, email);
+
+		if (!user.getEmail().equals(email) && userRepository.existsByEmailAndIdNot(email, userId)) {
+			throw new DuplicateEmailException();
+		}
+
+		String passwordHash = updatedPasswordHash(user, request.currentPassword(), request.newPassword());
+		user.updateProfile(name, email, passwordHash);
+		try {
+			UserEntity saved = userRepository.saveAndFlush(user);
+			return userMapper.toPublicResponse(userMapper.toDomain(saved));
+		}
+		catch (DataIntegrityViolationException exception) {
+			if (isEmailUniqueConstraint(exception)) {
+				throw new DuplicateEmailException();
+			}
+			throw exception;
+		}
+	}
+
 	private void validateRegistration(String name, String email, String password) {
+		validateIdentity(name, email);
+		validatePassword("password", password);
+	}
+
+	private void validateIdentity(String name, String email) {
 		if (name == null || name.isBlank()) {
 			throw new InvalidUserDataException("name", "Name is required");
 		}
@@ -134,8 +160,35 @@ public class AuthService {
 		if (email.length() > 254 || !EMAIL_PATTERN.matcher(email).matches()) {
 			throw new InvalidUserDataException("email", "Email must be valid and have at most 254 characters");
 		}
+	}
+
+	private void validatePassword(String field, String password) {
 		if (password == null || password.length() < 8 || password.length() > 72) {
-			throw new InvalidUserDataException("password", "Password must have between 8 and 72 characters");
+			throw new InvalidUserDataException(field, "Password must have between 8 and 72 characters");
+		}
+	}
+
+	private String updatedPasswordHash(UserEntity user, String currentPassword, String newPassword) {
+		if (newPassword == null) {
+			return user.getPasswordHash();
+		}
+		validatePassword("newPassword", newPassword);
+		if (currentPassword == null || currentPassword.isBlank()
+				|| !passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+			throw new InvalidUserDataException("currentPassword", "Current password is invalid");
+		}
+		if (passwordEncoder.matches(newPassword, user.getPasswordHash())) {
+			throw new InvalidUserDataException("newPassword", "New password must be different from current password");
+		}
+		return passwordEncoder.encode(newPassword);
+	}
+
+	private UUID authenticatedUserId(String subject) {
+		try {
+			return UUID.fromString(subject);
+		}
+		catch (IllegalArgumentException | NullPointerException exception) {
+			throw new AuthenticatedUserNotFoundException();
 		}
 	}
 
@@ -144,7 +197,14 @@ public class AuthService {
 		while (current != null) {
 			if (current instanceof ConstraintViolationException constraintViolation) {
 				String constraintName = constraintViolation.getConstraintName();
-				return constraintName != null && EMAIL_UNIQUE_CONSTRAINT.equalsIgnoreCase(constraintName);
+				if (constraintName != null
+						&& constraintName.toLowerCase(Locale.ROOT).contains(EMAIL_UNIQUE_CONSTRAINT)) {
+					return true;
+				}
+			}
+			String message = current.getMessage();
+			if (message != null && message.toLowerCase(Locale.ROOT).contains(EMAIL_UNIQUE_CONSTRAINT)) {
+				return true;
 			}
 			current = current.getCause();
 		}
