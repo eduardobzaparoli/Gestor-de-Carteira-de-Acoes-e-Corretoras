@@ -304,6 +304,38 @@ input.control::placeholder {
 .field .field-error {
   color: var(--danger);
 }
+.password-field {
+  position: relative;
+}
+.password-field > input {
+  padding-right: 3rem;
+}
+.password-field__toggle {
+  position: absolute;
+  right: 0.3rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2.35rem;
+  height: 2.35rem;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.password-field__toggle:hover,
+.password-field__toggle:focus-visible {
+  color: var(--primary-dark);
+  background: var(--primary-soft);
+  outline: none;
+}
+.password-field__toggle:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--surface-solid),
+    0 0 0 4px var(--primary);
+}
 .date-field {
   position: relative;
 }

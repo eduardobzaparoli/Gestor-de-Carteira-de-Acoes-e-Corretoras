@@ -27,6 +27,8 @@ export function ProfilePage() {
   const [errors, setErrors] = useState<ProfileErrors>({});
   const [submitError, setSubmitError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
+  const [passwordVisibilityResetKey, setPasswordVisibilityResetKey] =
+    useState(0);
 
   const update = (field: keyof ProfileForm, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -34,13 +36,15 @@ export function ProfilePage() {
     setSubmitError(undefined);
   };
 
-  const clearPasswords = () =>
+  const clearPasswords = () => {
     setForm((current) => ({
       ...current,
       currentPassword: "",
       newPassword: "",
       confirmPassword: "",
     }));
+    setPasswordVisibilityResetKey((current) => current + 1);
+  };
 
   const validate = () => {
     const next: ProfileErrors = {};
@@ -176,6 +180,7 @@ export function ProfilePage() {
                 name="currentPassword"
                 label="Senha atual"
                 type="password"
+                visibilityResetKey={passwordVisibilityResetKey}
                 value={form.currentPassword}
                 error={errors.currentPassword}
                 onChange={(event) =>
@@ -188,6 +193,7 @@ export function ProfilePage() {
                 name="newPassword"
                 label="Nova senha"
                 type="password"
+                visibilityResetKey={passwordVisibilityResetKey}
                 value={form.newPassword}
                 error={errors.newPassword}
                 onChange={(event) => update("newPassword", event.target.value)}
@@ -200,6 +206,7 @@ export function ProfilePage() {
                 name="confirmPassword"
                 label="Confirmar nova senha"
                 type="password"
+                visibilityResetKey={passwordVisibilityResetKey}
                 value={form.confirmPassword}
                 error={errors.confirmPassword}
                 onChange={(event) =>

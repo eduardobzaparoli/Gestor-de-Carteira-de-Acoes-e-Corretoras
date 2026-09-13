@@ -40,6 +40,8 @@ export function AdminUsersPage() {
     undefined,
   );
   const [form, setForm] = useState<UserForm>(emptyForm);
+  const [passwordVisibilityResetKey, setPasswordVisibilityResetKey] =
+    useState(0);
   const [action, setAction] = useState<{
     user: AdminUser;
     kind: "deactivate" | "reactivate";
@@ -101,10 +103,12 @@ export function AdminUsersPage() {
         .length ?? 0,
   };
   const openCreate = () => {
+    setPasswordVisibilityResetKey((current) => current + 1);
     setEditing(null);
     setForm(emptyForm);
   };
   const openEdit = (user: AdminUser) => {
+    setPasswordVisibilityResetKey((current) => current + 1);
     setEditing(user);
     setForm({
       name: user.name,
@@ -288,6 +292,7 @@ export function AdminUsersPage() {
             <Field
               label="Senha"
               type="password"
+              visibilityResetKey={passwordVisibilityResetKey}
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               minLength={8}
