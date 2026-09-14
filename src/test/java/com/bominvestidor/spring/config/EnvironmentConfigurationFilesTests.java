@@ -76,6 +76,7 @@ class EnvironmentConfigurationFilesTests {
         Properties properties = loadProperties(".env.example");
 
         assertEquals("dev", properties.getProperty("SPRING_PROFILES_ACTIVE"));
+        assertEquals("bominvestidor", properties.getProperty("POSTGRES_DB"));
         assertEquals("jdbc:postgresql://localhost:5432/bominvestidor", properties.getProperty("DB_URL"));
         assertEquals("postgres", properties.getProperty("DB_USERNAME"));
         assertEquals("troque-esta-senha", properties.getProperty("DB_PASSWORD"));
@@ -83,13 +84,16 @@ class EnvironmentConfigurationFilesTests {
         String jwtSecret = properties.getProperty("JWT_SECRET");
         assertTrue(jwtSecret.startsWith("troque-por-"));
         assertTrue(jwtSecret.length() >= 32);
+        assertEquals("PT1H", properties.getProperty("JWT_EXPIRATION"));
+        assertEquals("5173", properties.getProperty("FRONTEND_PORT"));
+        assertEquals("8080", properties.getProperty("BACKEND_PORT"));
         assertEquals("troque-por-sua-chave", properties.getProperty("ALPHA_VANTAGE_API_KEY"));
         assertEquals("troque-por-sua-chave-twelve-data", properties.getProperty("TWELVE_DATA_API_KEY"));
         assertEquals("troque-por-seu-token", properties.getProperty("BRAPI_TOKEN"));
 		assertEquals("PT30M", properties.getProperty("INCOME_PROVIDER_CACHE_TTL"));
 		assertEquals("PT6H", properties.getProperty("INCOME_PROVIDER_STALE_TTL"));
         assertEquals("http://localhost:5173", properties.getProperty("CORS_ALLOWED_ORIGINS"));
-		assertEquals(11, properties.size());
+        assertEquals(15, properties.size());
     }
 
     @Test

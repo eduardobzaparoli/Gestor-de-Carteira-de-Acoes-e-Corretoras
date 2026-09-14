@@ -4,30 +4,47 @@ A aplicação usa Java 17 e perfis Spring. `dev` é o perfil padrão com Postgre
 
 ## Perfis
 
-| Perfil | Banco | Finalidade |
-| --- | --- | --- |
-| `dev` | PostgreSQL | Desenvolvimento integrado; URL e usuário possuem padrões locais, mas a senha é obrigatória |
-| `h2` | H2 em memória | Execução local explícita sem PostgreSQL |
-| `test` | H2 em memória | Testes automatizados que não dependem de infraestrutura externa |
-| `postgres` | PostgreSQL | Testes de integração e validação de migrações |
-| `prod` | PostgreSQL | Produção, sem padrões para a conexão |
+| Perfil     | Banco         | Finalidade                                                                                 |
+| ---------- | ------------- | ------------------------------------------------------------------------------------------ |
+| `dev`      | PostgreSQL    | Desenvolvimento integrado; URL e usuário possuem padrões locais, mas a senha é obrigatória |
+| `h2`       | H2 em memória | Execução local explícita sem PostgreSQL                                                    |
+| `test`     | H2 em memória | Testes automatizados que não dependem de infraestrutura externa                            |
+| `postgres` | PostgreSQL    | Testes de integração e validação de migrações                                              |
+| `prod`     | PostgreSQL    | Produção, sem padrões para a conexão                                                       |
 
 Todos os perfis habilitam o Flyway, usam as migrations compartilhadas em `classpath:db/migration` e configuram o Hibernate somente para validar o esquema. Apenas os perfis PostgreSQL aceitam a baseline automática necessária para bancos legados. Veja o [guia de versionamento do banco](database-migrations.md).
 
+## Execução em contêineres
+
+O arquivo `compose.yaml` inicia PostgreSQL, backend e frontend. Dentro dessa composição, o backend usa o perfil `prod` e recebe uma URL JDBC com o nome interno `database`; não use `localhost` para a conexão entre contêineres.
+
+O Docker Compose lê o `.env` da raiz para substituição de valores e injeta somente as variáveis declaradas em cada serviço. Isso não altera a regra da aplicação: o Spring Boot continua recebendo variáveis do processo e não carrega `.env` implicitamente.
+
+| Variável        | Serviço          | Finalidade                                        |
+| --------------- | ---------------- | ------------------------------------------------- |
+| `POSTGRES_DB`   | database/backend | Nome do banco persistente; padrão `bominvestidor` |
+| `DB_USERNAME`   | database/backend | Usuário obrigatório do PostgreSQL                 |
+| `DB_PASSWORD`   | database/backend | Senha obrigatória do PostgreSQL                   |
+| `JWT_SECRET`    | backend          | Segredo obrigatório com ao menos 32 bytes         |
+| `FRONTEND_PORT` | frontend         | Porta publicada no Windows; padrão `5173`         |
+| `BACKEND_PORT`  | backend          | Porta publicada no Windows; padrão `8080`         |
+
+As chaves de integração continuam opcionais para a inicialização e são entregues somente ao backend. O build do frontend recebe apenas a base pública `/`, usada pelo proxy para encaminhar `/api` na rede interna. Consulte o [guia de Docker](docker.md) para a preparação completa.
+
 ## Variáveis essenciais
 
-| Variável | Perfis | Obrigatória | Padrão/finalidade |
-| --- | --- | --- | --- |
-| `SPRING_PROFILES_ACTIVE` | todos | Não | `dev`; seleciona explicitamente o perfil quando informado |
-| `JWT_SECRET` | dev, h2, postgres, prod | Sim ao executar a aplicação | Segredo com ao menos 32 bytes |
-| `JWT_EXPIRATION` | todos | Não | `PT1H` |
-| `DB_URL` | dev, postgres, prod | Em `prod` | Em `dev` há o padrão `jdbc:postgresql://localhost:5432/bominvestidor` |
-| `DB_USERNAME` | dev, postgres, prod | Em `postgres` e `prod` | Em `dev` há o padrão `postgres` |
-| `DB_PASSWORD` | dev, postgres, prod | Sim | Senha do banco, sem valor padrão |
-| `CORS_ALLOWED_ORIGINS` | todos | Não | Lista separada por vírgulas; vazia bloqueia CORS |
-| `ADMIN_BOOTSTRAP_NAME` | todos | Não | Nome do administrador inicial |
-| `ADMIN_BOOTSTRAP_EMAIL` | todos | Não | E-mail do administrador inicial |
-| `ADMIN_BOOTSTRAP_PASSWORD` | todos | Não | Senha do administrador inicial |
+| Variável                   | Perfis                  | Obrigatória                 | Padrão/finalidade                                                     |
+| -------------------------- | ----------------------- | --------------------------- | --------------------------------------------------------------------- |
+| `SPRING_PROFILES_ACTIVE`   | todos                   | Não                         | `dev`; seleciona explicitamente o perfil quando informado             |
+| `JWT_SECRET`               | dev, h2, postgres, prod | Sim ao executar a aplicação | Segredo com ao menos 32 bytes                                         |
+| `JWT_EXPIRATION`           | todos                   | Não                         | `PT1H`                                                                |
+| `DB_URL`                   | dev, postgres, prod     | Em `prod`                   | Em `dev` há o padrão `jdbc:postgresql://localhost:5432/bominvestidor` |
+| `DB_USERNAME`              | dev, postgres, prod     | Em `postgres` e `prod`      | Em `dev` há o padrão `postgres`                                       |
+| `DB_PASSWORD`              | dev, postgres, prod     | Sim                         | Senha do banco, sem valor padrão                                      |
+| `CORS_ALLOWED_ORIGINS`     | todos                   | Não                         | Lista separada por vírgulas; vazia bloqueia CORS                      |
+| `ADMIN_BOOTSTRAP_NAME`     | todos                   | Não                         | Nome do administrador inicial                                         |
+| `ADMIN_BOOTSTRAP_EMAIL`    | todos                   | Não                         | E-mail do administrador inicial                                       |
+| `ADMIN_BOOTSTRAP_PASSWORD` | todos                   | Não                         | Senha do administrador inicial                                        |
 
 Para o frontend local, permita sua origem no backend:
 
@@ -51,9 +68,9 @@ Por padrão, a interface consome `http://localhost:8080`. Para outro endereço, 
 Copy-Item .env.example .env.local
 ```
 
-| Variável | Obrigatória | Padrão/finalidade |
-| --- | --- | --- |
-| `VITE_API_BASE_URL` | Não | `http://localhost:8080`; URL pública da API consumida pelo navegador |
+| Variável            | Obrigatória | Padrão/finalidade                                                    |
+| ------------------- | ----------- | -------------------------------------------------------------------- |
+| `VITE_API_BASE_URL` | Não         | `http://localhost:8080`; URL pública da API consumida pelo navegador |
 
 Não coloque `DB_PASSWORD`, `JWT_SECRET`, chaves de provedores ou qualquer outro segredo em variáveis `VITE_*`: o Vite incorpora esses valores aos arquivos entregues ao navegador. O arquivo `frontend/.env.local` é ignorado pelo Git.
 
@@ -153,28 +170,28 @@ $env:JWT_SECRET = "seu-segredo-local-com-pelo-menos-32-bytes"
 
 As URLs possuem padrões públicos configurados em `application.properties`. As variáveis disponíveis são:
 
-| Variável | Obrigatória | Padrão/finalidade |
-| --- | --- | --- |
-| `BRASIL_API_BASE_URL` | Não | `https://brasilapi.com.br` |
-| `VIA_CEP_BASE_URL` | Não | `https://viacep.com.br` |
-| `CVM_SNAPSHOT_URL` | Não | Snapshot oficial de intermediários da CVM |
-| `BRAPI_BASE_URL` | Não | `https://brapi.dev` |
-| `BRAPI_TOKEN` | Não | Token para capacidades contratadas da Brapi |
-| `TWELVE_DATA_BASE_URL` | Não | `https://api.twelvedata.com` |
-| `TWELVE_DATA_API_KEY` | Não | Chave usada em pesquisa, cotação e histórico de ativos dos EUA |
-| `ALPHA_VANTAGE_BASE_URL` | Não | `https://www.alphavantage.co` |
-| `ALPHA_VANTAGE_API_KEY` | Não | Chave usada exclusivamente na consulta de dividendos dos EUA |
-| `INTEGRATIONS_CONNECT_TIMEOUT` | Não | `PT3S` |
-| `INTEGRATIONS_READ_TIMEOUT` | Não | `PT5S` |
-| `CVM_CACHE_TTL` | Não | `PT24H` |
-| `CVM_ACTIVE_STATUS` | Não | Estado cadastral considerado ativo |
-| `CVM_MAX_SNAPSHOT_BYTES` | Não | `10000000` |
-| `ASSET_SEARCH_CACHE_TTL` | Não | `PT5M` |
-| `ASSET_QUOTE_CACHE_TTL` | Não | `PT1M` |
-| `EXCHANGE_RATE_CACHE_TTL` | Não | `PT1H` |
-| `INCOME_CANDIDATE_CACHE_TTL` | Não | `PT10M` |
-| `HISTORICAL_PRICE_WINDOW_DAYS` | Não | `90` |
-| `HISTORICAL_PRICE_CACHE_TTL` | Não | `PT15M` |
+| Variável                       | Obrigatória | Padrão/finalidade                                              |
+| ------------------------------ | ----------- | -------------------------------------------------------------- |
+| `BRASIL_API_BASE_URL`          | Não         | `https://brasilapi.com.br`                                     |
+| `VIA_CEP_BASE_URL`             | Não         | `https://viacep.com.br`                                        |
+| `CVM_SNAPSHOT_URL`             | Não         | Snapshot oficial de intermediários da CVM                      |
+| `BRAPI_BASE_URL`               | Não         | `https://brapi.dev`                                            |
+| `BRAPI_TOKEN`                  | Não         | Token para capacidades contratadas da Brapi                    |
+| `TWELVE_DATA_BASE_URL`         | Não         | `https://api.twelvedata.com`                                   |
+| `TWELVE_DATA_API_KEY`          | Não         | Chave usada em pesquisa, cotação e histórico de ativos dos EUA |
+| `ALPHA_VANTAGE_BASE_URL`       | Não         | `https://www.alphavantage.co`                                  |
+| `ALPHA_VANTAGE_API_KEY`        | Não         | Chave usada exclusivamente na consulta de dividendos dos EUA   |
+| `INTEGRATIONS_CONNECT_TIMEOUT` | Não         | `PT3S`                                                         |
+| `INTEGRATIONS_READ_TIMEOUT`    | Não         | `PT5S`                                                         |
+| `CVM_CACHE_TTL`                | Não         | `PT24H`                                                        |
+| `CVM_ACTIVE_STATUS`            | Não         | Estado cadastral considerado ativo                             |
+| `CVM_MAX_SNAPSHOT_BYTES`       | Não         | `10000000`                                                     |
+| `ASSET_SEARCH_CACHE_TTL`       | Não         | `PT5M`                                                         |
+| `ASSET_QUOTE_CACHE_TTL`        | Não         | `PT1M`                                                         |
+| `EXCHANGE_RATE_CACHE_TTL`      | Não         | `PT1H`                                                         |
+| `INCOME_CANDIDATE_CACHE_TTL`   | Não         | `PT10M`                                                        |
+| `HISTORICAL_PRICE_WINDOW_DAYS` | Não         | `90`                                                           |
+| `HISTORICAL_PRICE_CACHE_TTL`   | Não         | `PT15M`                                                        |
 
 `BRAPI_TOKEN`, `TWELVE_DATA_API_KEY` e `ALPHA_VANTAGE_API_KEY` são opcionais para iniciar. A ausência de uma credencial desabilita somente as capacidades do respectivo provedor: a Twelve Data atende pesquisa, cotação e histórico dos EUA; a Alpha Vantage permanece responsável pelos dividendos dos EUA; e a Brapi atende o mercado brasileiro. Não há fallback de cotação ou histórico para a Alpha Vantage.
 

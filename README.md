@@ -2,7 +2,20 @@
 
 Aplicação completa para gestão privada de corretoras, carteiras, lançamentos, posições, valorização, evolução patrimonial e proventos. O backend usa Java 17 e Spring Boot; a interface web usa React, TypeScript e Vite.
 
-## Início rápido
+## Início rápido com Docker
+
+Com o Docker Desktop instalado e aberto, prepare o `.env` a partir do modelo, substitua os valores fictícios de `DB_PASSWORD` e `JWT_SECRET` e execute:
+
+```powershell
+docker compose up --build --detach
+docker compose ps
+```
+
+A interface estará em `http://localhost:5173` e a API em `http://localhost:8080`. O banco permanece em um volume local quando a composição é parada normalmente.
+
+Se o comando `docker` ainda não estiver disponível ou se esta for sua primeira experiência com contêineres, siga o [guia completo de Docker](docs/docker.md), que inclui instalação, conceitos, logs, diagnóstico e o alerta para remoção de dados.
+
+## Execução sem Docker
 
 O perfil padrão `dev` usa PostgreSQL. Crie seu arquivo local de referência a partir do modelo versionado:
 
@@ -34,7 +47,7 @@ npm run dev
 
 A interface estará em `http://localhost:5173`. Mantenha `CORS_ALLOWED_ORIGINS=http://localhost:5173` entre as variáveis do backend. Se a API estiver em outro endereço, copie `frontend/.env.example` para `frontend/.env.local` e ajuste somente `VITE_API_BASE_URL`. Variáveis `VITE_*` ficam públicas no bundle e nunca devem conter senhas, tokens ou chaves.
 
-Consulte [configuração](docs/configuration.md), [versionamento do banco](docs/database-migrations.md), [guia da API](docs/api-guide.md) e [operação](docs/operations.md).
+Consulte [Docker](docs/docker.md), [configuração](docs/configuration.md), [versionamento do banco](docs/database-migrations.md), [guia da API](docs/api-guide.md) e [operação](docs/operations.md).
 
 ## Validação de release
 

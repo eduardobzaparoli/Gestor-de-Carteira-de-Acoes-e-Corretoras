@@ -1,5 +1,21 @@
 # Operação
 
+## Operação local com Docker
+
+O ambiente em contêineres possui verificações de saúde para PostgreSQL, backend e frontend. Consulte o estado com:
+
+```powershell
+docker compose ps
+```
+
+Somente considere a aplicação pronta quando os três serviços estiverem saudáveis. Os logs ficam separados por serviço e podem ser consultados sem entrar nos contêineres:
+
+```powershell
+docker compose logs --follow backend
+```
+
+`docker compose down` para os serviços e preserva o volume do banco. A variante `docker compose down --volumes` é destrutiva e apaga todos os dados PostgreSQL locais. O procedimento completo, incluindo instalação e diagnóstico, está no [guia de Docker](docker.md).
+
 ## Implantação e migração
 
 Configure `JWT_SECRET`, `DB_URL`, `DB_USERNAME` e `DB_PASSWORD`, faça backup do banco e execute o gate PostgreSQL antes da implantação. Ao iniciar com `prod`, o Flyway aplica migrações versionadas e o Hibernate valida o esquema. Considere a instância pronta somente após `/actuator/health` responder `UP`.
