@@ -1231,7 +1231,7 @@ input.control::placeholder {
 .asset-result {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 1rem;
   border: 1px solid var(--line);
   background: var(--surface-solid);
@@ -1259,6 +1259,13 @@ input.control::placeholder {
   align-items: center;
   gap: 0.65rem;
   min-width: 0;
+  width: 100%;
+}
+.asset-result__identity > div {
+  min-width: 0;
+}
+.asset-result__identity > div > span {
+  overflow-wrap: anywhere;
 }
 .broker-card h3 {
   margin: 0.7rem 0 0.25rem;
