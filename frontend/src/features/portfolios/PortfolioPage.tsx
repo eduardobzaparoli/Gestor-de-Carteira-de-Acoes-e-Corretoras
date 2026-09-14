@@ -1074,16 +1074,6 @@ function TransactionDialog({
                           </span>
                         </div>
                       </div>
-                      <strong>
-                        {item.currency === "BRL"
-                          ? money(item.lastQuote, "BRL")
-                          : exchangeRate
-                            ? money(
-                                convertedAmount(item.lastQuote, exchangeRate),
-                                "BRL",
-                              )
-                            : "Câmbio indisponível"}
-                      </strong>
                     </button>
                   ))}
                 </div>

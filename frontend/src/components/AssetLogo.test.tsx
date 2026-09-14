@@ -8,6 +8,25 @@ test("resolve a fonte de logo de acordo com o mercado", () => {
   expect(assetLogoUrl("aapl", "US")).toBe(
     "https://assets.parqet.com/logos/symbol/AAPL?format=webp&size=96",
   );
+  expect(assetLogoUrl("sanb11f", "BR")).toBe(
+    "https://icons.brapi.dev/icons/SANB11.svg",
+  );
+});
+
+test("marca a imagem como carregada sem alterar o ticker acessível", () => {
+  const { container } = render(<AssetLogo ticker="SANB11F" market="BR" />);
+  const image = screen.getByRole("img", { name: "Logotipo de SANB11F" });
+
+  fireEvent.load(image);
+
+  expect(image).toHaveAttribute(
+    "src",
+    "https://icons.brapi.dev/icons/SANB11.svg",
+  );
+  expect(container.querySelector(".asset-logo")).toHaveAttribute(
+    "data-loaded",
+    "true",
+  );
 });
 
 test("tenta fontes alternativas antes de manter o marcador local", () => {

@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { Route, Routes } from "react-router-dom";
@@ -257,6 +257,10 @@ test("pesquisa um ativo e registra uma compra", async () => {
         button.classList.contains("asset-result") &&
         button.textContent?.includes("PETR4"),
     )!;
+  expect(
+    within(assetButton).getByRole("img", { name: "Logotipo de PETR4" }),
+  ).toHaveAttribute("src", "https://icons.brapi.dev/icons/PETR4.svg");
+  expect(assetButton).not.toHaveTextContent("31,90");
   await userEvent.click(assetButton);
   await userEvent.type(screen.getByLabelText("Quantidade"), "2");
   await userEvent.click(
@@ -495,9 +499,14 @@ test("exibe e edita um ativo americano em reais sem alterar a moeda nativa da AP
   expect(
     screen.queryByText(/Logos americanos fornecidos por/i),
   ).not.toBeInTheDocument();
-  const asset = await screen.findByRole("button", {
-    name: /AAPL.*R\$\s*1\.620,53/i,
-  });
+  const asset = await screen.findByRole("button", { name: /AAPL.*Apple Inc/i });
+  expect(
+    within(asset).getByRole("img", { name: "Logotipo de AAPL" }),
+  ).toHaveAttribute(
+    "src",
+    "https://assets.parqet.com/logos/symbol/AAPL?format=webp&size=96",
+  );
+  expect(asset).not.toHaveTextContent(/R\$\s*1\.620,53/i);
   await userEvent.click(asset);
   expect(
     (screen.getByLabelText("Preço unitário (BRL)") as HTMLInputElement).value,

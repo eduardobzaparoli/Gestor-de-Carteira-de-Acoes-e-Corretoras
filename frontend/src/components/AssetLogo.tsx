@@ -2,8 +2,16 @@ import { useEffect, useState } from "react";
 
 export type AssetLogoMarket = "BR" | "US" | string;
 
-export const assetLogoUrl = (ticker: string, market: AssetLogoMarket) => {
+const logoSymbol = (ticker: string, market: AssetLogoMarket) => {
   const symbol = ticker.trim().toUpperCase();
+  if (market === "BR" && /^[A-Z]{4}\d{1,2}F$/.test(symbol)) {
+    return symbol.slice(0, -1);
+  }
+  return symbol;
+};
+
+export const assetLogoUrl = (ticker: string, market: AssetLogoMarket) => {
+  const symbol = logoSymbol(ticker, market);
   if (!symbol) return null;
   const encoded = encodeURIComponent(symbol);
   if (market === "BR") return `https://icons.brapi.dev/icons/${encoded}.svg`;
