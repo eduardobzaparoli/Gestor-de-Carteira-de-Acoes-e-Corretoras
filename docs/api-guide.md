@@ -1,0 +1,93 @@
+# Guia da API
+
+Com a aplicação em `http://localhost:8080`, o contrato fica em `/v3/api-docs` e a interface navegável em `/swagger-ui.html`.
+
+1. Cadastre uma conta em `POST /api/auth/register` ou autentique em `POST /api/auth/login`.
+2. Envie o token nas rotas protegidas como `Authorization: Bearer <token>`.
+3. Cadastre uma corretora e crie uma carteira.
+4. Pesquise um ativo em `GET /api/assets/search` e use o `selectionId` retornado em `POST /api/assets` para incluí-lo no catálogo privado do investidor.
+5. Use o `id` do ativo cadastrado como `registeredAssetId` ao registrar um lançamento em qualquer carteira do mesmo investidor.
+6. Consulte posições, valorização, evolução e proventos pelos endpoints da carteira.
+
+Erros usam JSON com `timestamp`, `status`, `code`, `message`, `path` e `fieldErrors`. O código público é a referência estável para tratamento pelo cliente; mensagens não devem ser usadas como identificadores.
+
+O health check público está em `GET /actuator/health` e expõe somente o estado agregado.
+
+## Perfil do investidor
+
+`GET /api/auth/me` retorna `id`, `name`, `email` e `role` da conta vinculada ao token. Um investidor autenticado pode atualizar o próprio perfil por `PUT /api/auth/me`:
+
+```http
+PUT /api/auth/me
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "name": "Ana Investidora",
+  "email": "ana@example.com",
+  "currentPassword": "senha-atual",
+  "newPassword": "nova-senha-segura"
+}
+```
+
+`currentPassword` e `newPassword` devem ser omitidos quando a senha não será alterada. Para trocar a senha, ambos são obrigatórios, a senha atual precisa estar correta e a nova senha deve ser diferente e possuir entre 8 e 72 caracteres. O sucesso retorna `200` com os dados públicos atualizados e nunca inclui senha ou hash.
+
+Nome e e-mail são normalizados como no cadastro. Um e-mail pertencente a outra conta retorna `409 EMAIL_ALREADY_REGISTERED`, inclusive em conflito concorrente. Campos inválidos, senha atual incorreta ou repetição da senha retornam `400 VALIDATION_ERROR` com o campo correspondente em `fieldErrors`. A identidade é sempre obtida do token; o investidor não pode alterar identificador, papel ou estado por essa operação.
+
+## Refinamentos usados pelo frontend
+
+- `GET /api/assets?market=BR|US` lista o catálogo privado, com filtro de mercado opcional. Cada item contém a última cotação armazenada e o instante da consulta.
+- `POST /api/assets/{assetId}/quote-refresh` consulta o provedor e atualiza explicitamente a cotação armazenada no catálogo.
+- `GET /api/assets/{assetId}/quote` obtém uma cotação corrente para preencher um lançamento sem modificar a cotação histórica do catálogo.
+- `GET /api/assets/exchange-rate?sourceCurrency=USD&date=aaaa-mm-dd` fornece ao catálogo a taxa para exibição das cotações americanas em BRL.
+- `DELETE /api/assets/{assetId}` exclui um ativo sem saldo positivo nas carteiras do investidor. `DELETE /api/assets` exclui o catálogo inteiro de forma atômica. Se algum alvo tiver posição positiva, a API responde `409` com `REGISTERED_ASSET_HAS_POSITION` e não remove nenhum registro.
+- `POST /api/portfolios/{portfolioId}/transactions` recebe `registeredAssetId`, tipo, data, quantidade, preço unitário e custos. A identidade do ativo é copiada do catálogo pertencente ao investidor; ticker, nome, mercado e moeda não são aceitos livremente.
+- `GET /api/brokerages/cnpj?cnpj=<cnpj>` consulta os dados oficiais da empresa antes do cadastro e retorna `cnpj`, `legalName` e `tradeName`.
+- `DELETE /api/brokerages/{id}` exclui uma corretora do investidor quando ela não está vinculada a nenhuma carteira. Uma corretora vinculada responde com `409` e código `BROKERAGE_HAS_PORTFOLIOS`.
+- `PUT /api/portfolios/{id}` atualiza os dados cadastrais de uma carteira do investidor. O corpo deve conter `name` e `brokerageId`; lançamentos, posições, proprietário, identificador e data de criação são preservados.
+- `PUT /api/portfolios/{portfolioId}/transactions/{transactionId}` atualiza tipo, data, quantidade, preço unitário e custos de um lançamento ainda pendente. Lançamentos efetivados ou cancelados respondem com `409` e código `TRANSACTION_CANNOT_BE_EDITED`.
+- `GET /api/portfolios/{portfolioId}/exchange-rates?sourceCurrency=USD&date=aaaa-mm-dd` retorna a taxa da moeda informada para BRL na data solicitada, após validar que a carteira pertence ao investidor autenticado.
+
+Datas enviadas à API permanecem no formato ISO `aaaa-mm-dd`; a conversão para `dd/mm/aaaa` é responsabilidade da interface. Valores decimais são enviados sem símbolo monetário e com ponto como separador decimal. A interface apresenta valores monetários em BRL; quando o ativo usa outra moeda, converte o valor somente para exibição e restaura a moeda nativa antes de enviar comandos financeiros à API.
+
+### Exemplo de edição de carteira
+
+```http
+PUT /api/portfolios/7ca0af25-ffbf-4407-98b5-a1d6638d4a55
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "name": "Reserva global",
+  "brokerageId": "241ac87b-b468-4ec3-98ab-2b60d41f680e"
+}
+```
+
+O sucesso retorna `200` com a carteira atualizada. Nome duplicado retorna `409 PORTFOLIO_NAME_ALREADY_REGISTERED`; carteira alheia ou inexistente retorna `404 PORTFOLIO_NOT_FOUND`; corretora alheia ou inexistente retorna `404 BROKERAGE_NOT_FOUND`. Campos ausentes ou inválidos retornam `400 VALIDATION_ERROR`.
+
+## Provedores de dados de mercado
+
+- Ativos brasileiros usam a Brapi para pesquisa, cotação e histórico.
+- Ativos dos Estados Unidos usam a Twelve Data para pesquisa, cotação e histórico diário.
+- Dividendos de ativos dos Estados Unidos continuam sendo consultados na Alpha Vantage.
+
+## Candidatos a proventos
+
+`GET /api/portfolios/{portfolioId}/income-events/candidates?market=BR|US` retorna um objeto enriquecido (e não mais uma coleção na raiz):
+
+```json
+{
+  "candidates": [],
+  "updatedAt": "2026-09-12T15:00:00Z",
+  "stale": false,
+  "warnings": []
+}
+```
+
+Cada aviso contém `ticker`, `market` e `code`. Uma falha parcial ou o uso temporário do último resultado válido retorna `200`, preserva os candidatos confiáveis e preenche `warnings`; `stale` indica que ao menos um resultado foi reutilizado após falha de atualização. A API retorna `503` somente quando todos os tickers necessários falham e não existe dado reutilizável. Carteiras sem ticker relevante retornam o objeto vazio sem consultar o provedor.
+
+Proventos brasileiros usam o endpoint agrupado `/api/v2/stocks/dividends` da Brapi. Resultados externos válidos, inclusive vazios, são mantidos temporariamente por mercado e ticker. Configure a janela normal com `INCOME_PROVIDER_CACHE_TTL` (padrão `PT30M`) e a janela adicional de contingência com `INCOME_PROVIDER_STALE_TTL` (padrão `PT6H`). As referências opacas retornadas em `candidates` continuam privadas, vinculadas ao investidor e à carteira e com validade própria.
+
+Os códigos públicos possíveis incluem `BRAPI_RATE_LIMITED`, `BRAPI_AUTHENTICATION_FAILED`, `BRAPI_PLAN_RESTRICTED`, `BRAPI_INVALID_RESPONSE`, `BRAPI_PROVIDER_UNAVAILABLE`, `ALPHAVANTAGE_RATE_LIMITED`, `ALPHAVANTAGE_AUTHENTICATION_FAILED`, `ALPHAVANTAGE_PLAN_RESTRICTED`, `ALPHAVANTAGE_INVALID_RESPONSE` e `ALPHAVANTAGE_PROVIDER_UNAVAILABLE`.
+
+As respostas públicas da API mantêm os mesmos contratos independentemente do provedor. Falhas da Twelve Data são normalizadas como `TWELVE_DATA_RATE_LIMITED` ou `TWELVE_DATA_PROVIDER_UNAVAILABLE`; detalhes técnicos e credenciais não são retornados ao cliente. Não existe fallback para a Alpha Vantage quando pesquisa, cotação ou histórico da Twelve Data falham.

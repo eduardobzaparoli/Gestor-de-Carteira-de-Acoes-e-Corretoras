@@ -1,0 +1,276 @@
+package com.bominvestidor.spring.postgres;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.NavigableMap;
+import java.util.Optional;
+import java.util.TreeMap;
+import java.util.UUID;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
+
+import com.bominvestidor.spring.domain.asset.AssetCandidate;
+import com.bominvestidor.spring.domain.asset.AssetMarket;
+import com.bominvestidor.spring.domain.asset.AssetQuote;
+import com.bominvestidor.spring.domain.asset.AssetType;
+import com.bominvestidor.spring.domain.evolution.HistoricalAssetKey;
+import com.bominvestidor.spring.domain.evolution.HistoricalAssetPrice;
+import com.bominvestidor.spring.domain.evolution.HistoricalAssetPriceSeries;
+import com.bominvestidor.spring.domain.user.UserRole;
+import com.bominvestidor.spring.dto.auth.RegisterRequest;
+import com.bominvestidor.spring.dto.portfolio.PortfolioCreateRequest;
+import com.bominvestidor.spring.dto.portfolio.PortfolioUpdateRequest;
+import com.bominvestidor.spring.dto.transaction.PortfolioTransactionCreateRequest;
+import com.bominvestidor.spring.dto.asset.RegisteredAssetCreateRequest;
+import com.bominvestidor.spring.dto.income.ManualIncomeEventCreateRequest;
+import com.bominvestidor.spring.domain.income.IncomeEventType;
+import com.bominvestidor.spring.domain.income.IncomeEventStatus;
+import com.bominvestidor.spring.domain.transaction.TransactionType;
+import com.bominvestidor.spring.entity.brokerage.BrokerageEntity;
+import com.bominvestidor.spring.entity.user.UserEntity;
+import com.bominvestidor.spring.exception.PortfolioNotFoundException;
+import com.bominvestidor.spring.exception.PortfolioConflictException;
+import com.bominvestidor.spring.integration.asset.AssetSearchStrategy;
+import com.bominvestidor.spring.integration.asset.AssetSearchStrategyResolver;
+import com.bominvestidor.spring.integration.historicalprice.HistoricalAssetPriceStrategy;
+import com.bominvestidor.spring.integration.historicalprice.HistoricalAssetPriceStrategyResolver;
+import com.bominvestidor.spring.repository.brokerage.BrokerageRepository;
+import com.bominvestidor.spring.repository.portfolio.PortfolioRepository;
+import com.bominvestidor.spring.repository.user.UserRepository;
+import com.bominvestidor.spring.service.auth.AuthService;
+import com.bominvestidor.spring.service.asset.AssetSearchService;
+import com.bominvestidor.spring.service.asset.RegisteredAssetService;
+import com.bominvestidor.spring.repository.asset.RegisteredAssetRepository;
+import com.bominvestidor.spring.service.portfolio.PortfolioService;
+import com.bominvestidor.spring.service.position.PortfolioPositionService;
+import com.bominvestidor.spring.service.valuation.PortfolioMarketValuationService;
+import com.bominvestidor.spring.service.transaction.PortfolioTransactionService;
+import com.bominvestidor.spring.service.income.PortfolioIncomeEventService;
+import com.bominvestidor.spring.service.evolution.PortfolioValueEvolutionService;
+import com.bominvestidor.spring.exception.PortfolioIncomeEventConflictException;
+
+@SpringBootTest(properties = {
+		"app.security.jwt.secret=test-only-secret-key-with-at-least-32-bytes",
+		"app.security.jwt.expiration=PT15M"
+})
+@ActiveProfiles("postgres")
+@EnabledIfSystemProperty(named = "runPostgresTests", matches = "true")
+@Import(PostgresPortfolioIntegrationTests.AssetProviderStubConfiguration.class)
+class PostgresPortfolioIntegrationTests {
+
+	@Autowired private AuthService authService;
+	@Autowired private PortfolioService portfolioService;
+	@Autowired private PortfolioRepository portfolioRepository;
+	@Autowired private BrokerageRepository brokerageRepository;
+	@Autowired private UserRepository userRepository;
+	@Autowired private AssetSearchService assetSearchService;
+	@Autowired private RegisteredAssetService registeredAssetService;
+	@Autowired private RegisteredAssetRepository registeredAssetRepository;
+	@Autowired private JdbcTemplate jdbcTemplate;
+	@Autowired private PortfolioTransactionService transactionService;
+	@Autowired private PortfolioPositionService positionService;
+	@Autowired private PortfolioMarketValuationService valuationService;
+	@Autowired private PortfolioIncomeEventService incomeEventService;
+	@Autowired private PortfolioValueEvolutionService evolutionService;
+
+	@Test
+	void initializesSchemaAndSupportsPortfolioLifecycle() {
+		String email = "postgres-portfolio-" + UUID.randomUUID() + "@example.com";
+		UserEntity user = null;
+		BrokerageEntity brokerage = null;
+		BrokerageEntity updatedBrokerage = null;
+		UUID portfolioId = null;
+
+		try {
+			authService.register(new RegisterRequest("Postgres Portfolio", email, "password123"));
+			user = userRepository.findByEmail(email).orElseThrow();
+			brokerage = saveBrokerage(user);
+			UUID userId = user.getId();
+
+			var created = portfolioService.create(userId, new PortfolioCreateRequest("Carteira PostgreSQL", brokerage.getId()));
+			portfolioId = created.id();
+			UUID createdPortfolioId = portfolioId;
+			assertEquals("Carteira PostgreSQL", portfolioService.findById(userId, createdPortfolioId).name());
+			assertEquals(1, portfolioService.findAll(userId).size());
+
+			List<String> assetTablesBefore = assetPersistenceTables();
+			List<Long> persistedRowsBefore = persistedRows();
+			var assets = assetSearchService.search(userId, "BR", "STOCK", "PETR");
+			assertEquals(1, assets.size());
+			assertEquals("PETR4", assets.get(0).ticker());
+			assertEquals(new BigDecimal("35.10"), assets.get(0).price());
+			assertEquals(assetTablesBefore, assetPersistenceTables());
+			assertEquals(persistedRowsBefore, persistedRows());
+
+			var registered = registeredAssetService.register(userId, new RegisteredAssetCreateRequest(assets.get(0).selectionId()));
+			transactionService.create(userId, portfolioId, new PortfolioTransactionCreateRequest(registered.id(), TransactionType.BUY, LocalDate.now().minusDays(1), new BigDecimal("2"),
+					new BigDecimal("35.10"), null));
+			assertEquals(1, jdbcTemplate.queryForObject(
+					"select count(*) from portfolio_transactions where portfolio_id = ?", Integer.class, portfolioId));
+			updatedBrokerage = saveBrokerage(user);
+			var updated = portfolioService.update(userId, portfolioId,
+					new PortfolioUpdateRequest("Carteira PostgreSQL atualizada", updatedBrokerage.getId()));
+			assertEquals("Carteira PostgreSQL atualizada", updated.name());
+			assertEquals(updatedBrokerage.getId(), updated.brokerage().id());
+			assertEquals(1, jdbcTemplate.queryForObject(
+					"select count(*) from portfolio_transactions where portfolio_id = ?", Integer.class, portfolioId));
+			assertEquals(0, new BigDecimal("35.10").compareTo(positionService.findAll(userId, portfolioId).get(0).averagePrice()));
+			var valuation = valuationService.find(userId, portfolioId);
+			assertEquals(1, valuation.positions().size());
+			assertEquals(0, new BigDecimal("70.20").compareTo(valuation.positions().get(0).marketValue()));
+			assertEquals("BRL", valuation.currencySummaries().get(0).currency());
+			var evolution = evolutionService.find(userId, portfolioId);
+			assertEquals(2, evolution.size());
+			assertEquals(LocalDate.now().minusDays(1), evolution.get(0).date());
+			assertEquals(0, new BigDecimal("70.20").compareTo(evolution.get(0).investedValue()));
+			assertEquals(0, new BigDecimal("70.20").compareTo(evolution.get(1).marketValue()));
+			assertEquals(List.of(), evolutionPersistenceTables());
+
+			var effectiveIncome = incomeEventService.createManual(userId, portfolioId, new ManualIncomeEventCreateRequest(
+					"PETR4", IncomeEventType.DIVIDEND,
+					LocalDate.now(), new BigDecimal("7.50"), null, null, null, "PostgreSQL test"));
+			var pendingIncome = incomeEventService.createManual(userId, portfolioId, new ManualIncomeEventCreateRequest(
+					"PETR4", IncomeEventType.DISTRIBUTION,
+					LocalDate.now().plusDays(5), new BigDecimal("3.00"), null, null, null, null));
+			assertEquals(IncomeEventStatus.EFFECTIVE, effectiveIncome.status());
+			assertEquals(IncomeEventStatus.PENDING, pendingIncome.status());
+			assertEquals(2, jdbcTemplate.queryForObject("select count(*) from portfolio_income_events where portfolio_id = ?", Integer.class, portfolioId));
+			assertEquals(pendingIncome.id(), incomeEventService.findAll(userId, portfolioId).get(0).id());
+			assertEquals(0, new BigDecimal("7.50").compareTo(incomeEventService.summary(userId, portfolioId).consolidatedReceivedAmount()));
+			assertThrows(PortfolioIncomeEventConflictException.class, () -> incomeEventService.createManual(userId, createdPortfolioId,
+					new ManualIncomeEventCreateRequest("PETR4", IncomeEventType.DIVIDEND,
+							LocalDate.now(), new BigDecimal("7.50"), null, null, null, "duplicate")));
+			incomeEventService.cancel(userId, portfolioId, pendingIncome.id());
+			assertEquals(IncomeEventStatus.CANCELLED, incomeEventService.findAll(userId, portfolioId).get(0).status());
+			assertEquals(List.of(), positionPersistenceTables());
+			assertEquals(List.of(), valuationPersistenceTables());
+			assertThrows(PortfolioConflictException.class, () -> portfolioService.delete(userId, createdPortfolioId));
+			deleteIncomeEvents(portfolioId);
+			deleteTransactions(portfolioId);
+
+			portfolioService.delete(userId, portfolioId);
+			UUID deletedPortfolioId = portfolioId;
+			assertThrows(PortfolioNotFoundException.class,
+					() -> portfolioService.findById(userId, deletedPortfolioId));
+			portfolioId = null;
+		}
+		finally {
+			if (portfolioId != null) {
+				deleteIncomeEvents(portfolioId);
+				deleteTransactions(portfolioId);
+				portfolioRepository.deleteById(portfolioId);
+			}
+			if (brokerage != null) {
+				brokerageRepository.deleteById(brokerage.getId());
+			}
+			if (updatedBrokerage != null) {
+				brokerageRepository.deleteById(updatedBrokerage.getId());
+			}
+			if (user != null) {
+				registeredAssetRepository.deleteAll();
+				userRepository.deleteById(user.getId());
+			}
+		}
+	}
+
+	private void deleteTransactions(UUID portfolioId) {
+		jdbcTemplate.update("delete from portfolio_transactions where portfolio_id = ?", portfolioId);
+	}
+	private void deleteIncomeEvents(UUID portfolioId) {
+		jdbcTemplate.update("delete from portfolio_income_events where portfolio_id = ?", portfolioId);
+	}
+
+	private List<String> assetPersistenceTables() {
+		return jdbcTemplate.queryForList("""
+				select table_name
+				from information_schema.tables
+				where table_schema = 'public'
+				  and (lower(table_name) like '%asset%' or lower(table_name) like '%quote%')
+				order by table_name
+				""", String.class);
+	}
+
+	private List<String> positionPersistenceTables() {
+		return jdbcTemplate.queryForList("""
+				select table_name from information_schema.tables
+				where table_schema = 'public' and lower(table_name) like '%position%'
+				order by table_name
+				""", String.class);
+	}
+
+	private List<String> valuationPersistenceTables() {
+		return jdbcTemplate.queryForList("""
+				select table_name from information_schema.tables
+				where table_schema = 'public' and lower(table_name) like '%valuation%'
+				order by table_name
+				""", String.class);
+	}
+
+	private List<String> evolutionPersistenceTables() {
+		return jdbcTemplate.queryForList("""
+				select table_name from information_schema.tables
+				where table_schema = 'public' and lower(table_name) like '%evolution%'
+				order by table_name
+				""", String.class);
+	}
+
+	private List<Long> persistedRows() {
+		return List.of(
+				jdbcTemplate.queryForObject("select count(*) from users", Long.class),
+				jdbcTemplate.queryForObject("select count(*) from brokerages", Long.class),
+				jdbcTemplate.queryForObject("select count(*) from portfolios", Long.class));
+	}
+
+	private BrokerageEntity saveBrokerage(UserEntity owner) {
+		Instant now = Instant.now();
+		UUID id = UUID.randomUUID();
+		String suffix = id.toString().replace("-", "");
+		return brokerageRepository.saveAndFlush(new BrokerageEntity(id, owner, "PostgreSQL " + suffix, "postgresql " + suffix,
+				suffix.substring(0, 14), "Razão Social", "Nome", "EM FUNCIONAMENTO NORMAL", "CORRETORAS", "04547000",
+				"Rua", "Bairro", "1", null, "São Paulo", "SP", now, now));
+	}
+
+	@TestConfiguration(proxyBeanMethods = false)
+	static class AssetProviderStubConfiguration {
+		@Bean
+		@Primary
+		AssetSearchStrategyResolver assetSearchStrategyResolver() {
+			return new AssetSearchStrategyResolver(List.of(new AssetSearchStrategy() {
+				@Override public AssetMarket market() { return AssetMarket.BR; }
+				@Override public List<AssetCandidate> findCandidates(AssetType type, String query) {
+					return List.of(new AssetCandidate("PETR4", "Petrobras PN", AssetMarket.BR, type, "BRL"));
+				}
+				@Override public Optional<AssetQuote> findQuote(String ticker) {
+					return Optional.of(new AssetQuote(ticker, "BRL", new BigDecimal("35.10")));
+				}
+			}));
+		}
+
+		@Bean
+		@Primary
+		HistoricalAssetPriceStrategyResolver historicalAssetPriceStrategyResolver() {
+			return new HistoricalAssetPriceStrategyResolver(List.of(new HistoricalAssetPriceStrategy() {
+				@Override public AssetMarket market() { return AssetMarket.BR; }
+				@Override public HistoricalAssetPriceSeries findSeries(String ticker, String currency, LocalDate startDate, LocalDate endDate) {
+					NavigableMap<LocalDate, HistoricalAssetPrice> prices = new TreeMap<>();
+					prices.put(endDate, new HistoricalAssetPrice(endDate, new BigDecimal("35.10")));
+					return new HistoricalAssetPriceSeries(new HistoricalAssetKey(AssetMarket.BR, ticker, currency), prices);
+				}
+			}));
+		}
+	}
+}

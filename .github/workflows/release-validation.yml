@@ -1,0 +1,51 @@
+name: Release validation
+
+on:
+  pull_request:
+  push:
+    branches: [dev]
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+  h2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17', cache: maven }
+      - run: ./mvnw -B -Prelease-h2 test
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_DB: bom_investidor_test, POSTGRES_USER: bom_investidor_test, POSTGRES_PASSWORD: test-only-password }
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U bom_investidor_test -d bom_investidor_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      DB_URL: jdbc:postgresql://localhost:5432/bom_investidor_test
+      DB_USERNAME: bom_investidor_test
+      DB_PASSWORD: test-only-password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17', cache: maven }
+      - run: ./mvnw -B -Prelease-postgres test
