@@ -50,11 +50,14 @@ Abra `.env` e substitua ao menos estes valores fictícios:
 DB_USERNAME=postgres
 DB_PASSWORD=escolha-uma-senha-local-forte
 JWT_SECRET=escolha-um-segredo-local-com-pelo-menos-32-bytes
+JWT_ISSUER=bom-investidor-local
 ```
 
 As chaves `BRAPI_TOKEN`, `TWELVE_DATA_API_KEY` e `ALPHA_VANTAGE_API_KEY` são necessárias somente para os recursos atendidos por cada provedor. Nunca coloque credenciais reais em `frontend/.env*` ou em variáveis `VITE_*`, pois elas podem se tornar públicas no navegador.
 
 O Docker Compose lê o `.env` para substituir e entregar explicitamente as variáveis aos serviços. O Spring Boot continua sem ler esse arquivo por conta própria quando executado fora do Docker.
+
+O `JWT_ISSUER` identifica os tokens aceitos pelo backend. Depois de introduzir ou alterar esse valor, usuários com tokens anteriores precisarão entrar novamente.
 
 ## 3. Validar e iniciar
 

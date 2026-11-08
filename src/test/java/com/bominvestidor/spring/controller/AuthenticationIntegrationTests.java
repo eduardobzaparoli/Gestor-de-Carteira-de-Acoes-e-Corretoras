@@ -19,6 +19,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.test.context.ActiveProfiles;
@@ -39,6 +40,7 @@ import tools.jackson.databind.ObjectMapper;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class AuthenticationIntegrationTests {
+	private static final String TEST_ISSUER = "bom-investidor-test";
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -63,6 +65,9 @@ class AuthenticationIntegrationTests {
 
 	@Autowired
 	private JwtEncoder jwtEncoder;
+
+	@Autowired
+	private JwtDecoder jwtDecoder;
 
 	@BeforeEach
 	void clearUsers() {
@@ -124,6 +129,7 @@ class AuthenticationIntegrationTests {
 	void logsInAndReturnsAuthenticatedIdentity() throws Exception {
 		register("Investidor", "investidor@example.com", "password123");
 		String token = loginAndGetToken(" INVESTIDOR@EXAMPLE.COM ", "password123");
+		assertEquals(TEST_ISSUER, jwtDecoder.decode(token).getClaimAsString("iss"));
 
 		mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
 				.andExpect(status().isOk())
@@ -131,6 +137,20 @@ class AuthenticationIntegrationTests {
 				.andExpect(jsonPath("$.email").value("investidor@example.com"))
 				.andExpect(jsonPath("$.role").value("INVESTOR"))
 				.andExpect(jsonPath("$.passwordHash").doesNotExist());
+	}
+
+	@Test
+	void rejectsTamperedSignatureAndUnexpectedIssuer() throws Exception {
+		register("Investidor", "investidor@example.com", "password123");
+		String token = loginAndGetToken("investidor@example.com", "password123");
+
+		mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + tamperSignature(token)))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+
+		mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + tokenWithIssuer("another-issuer")))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
 	}
 
 	@Test
@@ -220,6 +240,7 @@ class AuthenticationIntegrationTests {
 	private String expiredInvestorToken() {
 		Instant now = Instant.now();
 		JwtClaimsSet claims = JwtClaimsSet.builder()
+				.issuer(TEST_ISSUER)
 				.subject(UUID.randomUUID().toString())
 				.issuedAt(now.minusSeconds(7200))
 				.expiresAt(now.minusSeconds(3600))
@@ -227,5 +248,24 @@ class AuthenticationIntegrationTests {
 				.build();
 		JwsHeader headers = JwsHeader.with(MacAlgorithm.HS256).build();
 		return jwtEncoder.encode(JwtEncoderParameters.from(headers, claims)).getTokenValue();
+	}
+
+	private String tokenWithIssuer(String issuer) {
+		Instant now = Instant.now();
+		JwtClaimsSet claims = JwtClaimsSet.builder()
+				.issuer(issuer)
+				.subject(UUID.randomUUID().toString())
+				.issuedAt(now)
+				.expiresAt(now.plusSeconds(900))
+				.claim("role", "INVESTOR")
+				.build();
+		JwsHeader headers = JwsHeader.with(MacAlgorithm.HS256).build();
+		return jwtEncoder.encode(JwtEncoderParameters.from(headers, claims)).getTokenValue();
+	}
+
+	private String tamperSignature(String token) {
+		int signatureStart = token.lastIndexOf('.') + 1;
+		char replacement = token.charAt(signatureStart) == 'A' ? 'B' : 'A';
+		return token.substring(0, signatureStart) + replacement + token.substring(signatureStart + 1);
 	}
 }

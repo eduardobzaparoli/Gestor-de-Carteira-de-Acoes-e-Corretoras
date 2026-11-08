@@ -28,7 +28,8 @@ import com.bominvestidor.spring.service.auth.AuthService;
 
 @SpringBootTest(properties = {
 		"app.security.jwt.secret=test-only-secret-key-with-at-least-32-bytes",
-		"app.security.jwt.expiration=PT15M"
+		"app.security.jwt.expiration=PT15M",
+		"app.security.jwt.issuer=bom-investidor-test"
 })
 @ActiveProfiles("postgres")
 @EnabledIfSystemProperty(named = "runPostgresTests", matches = "true")

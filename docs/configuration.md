@@ -26,6 +26,7 @@ O Docker Compose lê o `.env` da raiz para substituição de valores e injeta so
 | `DB_USERNAME`   | database/backend | Usuário obrigatório do PostgreSQL                 |
 | `DB_PASSWORD`   | database/backend | Senha obrigatória do PostgreSQL                   |
 | `JWT_SECRET`    | backend          | Segredo obrigatório com ao menos 32 bytes         |
+| `JWT_ISSUER`    | backend          | Emissor obrigatório dos tokens JWT                |
 | `FRONTEND_PORT` | frontend         | Porta publicada no Windows; padrão `5173`         |
 | `BACKEND_PORT`  | backend          | Porta publicada no Windows; padrão `8080`         |
 
@@ -37,6 +38,7 @@ As chaves de integração continuam opcionais para a inicialização e são entr
 | -------------------------- | ----------------------- | --------------------------- | --------------------------------------------------------------------- |
 | `SPRING_PROFILES_ACTIVE`   | todos                   | Não                         | `dev`; seleciona explicitamente o perfil quando informado             |
 | `JWT_SECRET`               | dev, h2, postgres, prod | Sim ao executar a aplicação | Segredo com ao menos 32 bytes                                         |
+| `JWT_ISSUER`               | dev, h2, postgres, prod | Sim ao executar a aplicação | Identificador não vazio do emissor dos tokens                          |
 | `JWT_EXPIRATION`           | todos                   | Não                         | `PT1H`                                                                |
 | `DB_URL`                   | dev, postgres, prod     | Em `prod`                   | Em `dev` há o padrão `jdbc:postgresql://localhost:5432/bominvestidor` |
 | `DB_USERNAME`              | dev, postgres, prod     | Em `postgres` e `prod`      | Em `dev` há o padrão `postgres`                                       |
@@ -134,6 +136,7 @@ $env:DB_URL = "jdbc:postgresql://localhost:5432/bominvestidor"
 $env:DB_USERNAME = "postgres"
 $env:DB_PASSWORD = "sua-senha-local"
 $env:JWT_SECRET = "seu-segredo-local-com-pelo-menos-32-bytes"
+$env:JWT_ISSUER = "bom-investidor-local"
 $env:TWELVE_DATA_API_KEY = "sua-chave-twelve-data"
 $env:ALPHA_VANTAGE_API_KEY = "sua-chave-alpha-vantage"
 .\mvnw.cmd spring-boot:run
@@ -149,6 +152,7 @@ export DB_URL=jdbc:postgresql://localhost:5432/bominvestidor
 export DB_USERNAME=postgres
 export DB_PASSWORD='sua-senha-local'
 export JWT_SECRET='seu-segredo-local-com-pelo-menos-32-bytes'
+export JWT_ISSUER='bom-investidor-local'
 export TWELVE_DATA_API_KEY='sua-chave-twelve-data'
 export ALPHA_VANTAGE_API_KEY='sua-chave-alpha-vantage'
 ./mvnw spring-boot:run
@@ -163,6 +167,7 @@ O perfil H2 não precisa de variáveis do PostgreSQL:
 ```powershell
 $env:SPRING_PROFILES_ACTIVE = "h2"
 $env:JWT_SECRET = "seu-segredo-local-com-pelo-menos-32-bytes"
+$env:JWT_ISSUER = "bom-investidor-local"
 .\mvnw.cmd spring-boot:run
 ```
 

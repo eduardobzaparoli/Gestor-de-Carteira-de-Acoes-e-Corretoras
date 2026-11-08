@@ -10,7 +10,8 @@ import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest(properties = {
         "app.security.jwt.secret=test-only-secret-key-with-at-least-32-bytes",
-        "app.security.jwt.expiration=PT15M"
+        "app.security.jwt.expiration=PT15M",
+        "app.security.jwt.issuer=bom-investidor-test"
 })
 @ActiveProfiles("h2")
 class H2ProfileIntegrationTests {

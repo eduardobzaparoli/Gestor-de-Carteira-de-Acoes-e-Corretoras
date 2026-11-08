@@ -18,7 +18,7 @@ docker compose logs --follow backend
 
 ## Implantação e migração
 
-Configure `JWT_SECRET`, `DB_URL`, `DB_USERNAME` e `DB_PASSWORD`, faça backup do banco e execute o gate PostgreSQL antes da implantação. Ao iniciar com `prod`, o Flyway aplica migrações versionadas e o Hibernate valida o esquema. Considere a instância pronta somente após `/actuator/health` responder `UP`.
+Configure `JWT_SECRET`, `JWT_ISSUER`, `DB_URL`, `DB_USERNAME` e `DB_PASSWORD`, faça backup do banco e execute o gate PostgreSQL antes da implantação. Ao iniciar com `prod`, o Flyway aplica migrações versionadas e o Hibernate valida o esquema. Considere a instância pronta somente após `/actuator/health` responder `UP`. A primeira implantação com validação de emissor invalida tokens antigos e exige novo login.
 
 O procedimento completo para banco vazio, banco legado, histórico, checksum, concorrência e diagnóstico está no [guia de versionamento do banco](database-migrations.md).
 
