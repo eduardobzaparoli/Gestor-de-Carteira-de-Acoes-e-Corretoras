@@ -26,6 +26,7 @@ class ContainerConfigurationFilesTests {
         assertFalse(database.contains("\n    ports:"));
         assertTrue(compose.contains("DB_PASSWORD: ${DB_PASSWORD:?"));
         assertTrue(compose.contains("JWT_SECRET: ${JWT_SECRET:?"));
+		assertTrue(compose.contains("JWT_ISSUER: ${JWT_ISSUER:?"));
         assertTrue(compose.contains("DB_URL: jdbc:postgresql://database:5432/"));
         assertTrue(compose.contains("condition: service_healthy"));
         assertTrue(compose.contains("VITE_API_BASE_URL: /"));

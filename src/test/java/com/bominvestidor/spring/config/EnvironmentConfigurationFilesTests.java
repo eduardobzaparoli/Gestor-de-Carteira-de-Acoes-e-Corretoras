@@ -58,6 +58,8 @@ class EnvironmentConfigurationFilesTests {
         Properties properties = loadProperties("src/test/resources/application-test.properties");
 
         assertEquals("classpath:db/migration", defaults.getProperty("spring.flyway.locations"));
+        assertEquals("${JWT_ISSUER}", defaults.getProperty("app.security.jwt.issuer"));
+        assertEquals("bom-investidor-test", properties.getProperty("app.security.jwt.issuer"));
         assertTrue(properties.getProperty("spring.datasource.url").contains("MODE=PostgreSQL"));
         assertEquals("validate", properties.getProperty("spring.jpa.hibernate.ddl-auto"));
         assertEquals("true", properties.getProperty("spring.flyway.enabled"));
@@ -85,15 +87,16 @@ class EnvironmentConfigurationFilesTests {
         assertTrue(jwtSecret.startsWith("troque-por-"));
         assertTrue(jwtSecret.length() >= 32);
         assertEquals("PT1H", properties.getProperty("JWT_EXPIRATION"));
+        assertEquals("bom-investidor-local", properties.getProperty("JWT_ISSUER"));
         assertEquals("5173", properties.getProperty("FRONTEND_PORT"));
         assertEquals("8080", properties.getProperty("BACKEND_PORT"));
         assertEquals("troque-por-sua-chave", properties.getProperty("ALPHA_VANTAGE_API_KEY"));
         assertEquals("troque-por-sua-chave-twelve-data", properties.getProperty("TWELVE_DATA_API_KEY"));
         assertEquals("troque-por-seu-token", properties.getProperty("BRAPI_TOKEN"));
-		assertEquals("PT30M", properties.getProperty("INCOME_PROVIDER_CACHE_TTL"));
-		assertEquals("PT6H", properties.getProperty("INCOME_PROVIDER_STALE_TTL"));
+        assertEquals("PT30M", properties.getProperty("INCOME_PROVIDER_CACHE_TTL"));
+        assertEquals("PT6H", properties.getProperty("INCOME_PROVIDER_STALE_TTL"));
         assertEquals("http://localhost:5173", properties.getProperty("CORS_ALLOWED_ORIGINS"));
-        assertEquals(15, properties.size());
+        assertEquals(16, properties.size());
     }
 
     @Test
@@ -129,7 +132,9 @@ class EnvironmentConfigurationFilesTests {
     }
 
     private String sha256(String relativePath) throws IOException, NoSuchAlgorithmException {
-        byte[] content = Files.readAllBytes(PROJECT_ROOT.resolve(relativePath));
+        byte[] content = Files.readString(PROJECT_ROOT.resolve(relativePath), StandardCharsets.UTF_8)
+                .replace("\r\n", "\n")
+                .getBytes(StandardCharsets.UTF_8);
         return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
     }
 }

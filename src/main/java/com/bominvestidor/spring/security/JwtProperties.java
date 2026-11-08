@@ -6,7 +6,7 @@ import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "app.security.jwt")
-public record JwtProperties(String secret, Duration expiration) {
+public record JwtProperties(String secret, Duration expiration, String issuer) {
 
 	private static final int MINIMUM_SECRET_BYTES = 32;
 
@@ -19,6 +19,9 @@ public record JwtProperties(String secret, Duration expiration) {
 		}
 		if (expiration == null || expiration.isZero() || expiration.isNegative()) {
 			throw new IllegalStateException("JWT expiration must be positive");
+		}
+		if (issuer == null || issuer.isBlank()) {
+			throw new IllegalStateException("JWT_ISSUER must be configured");
 		}
 	}
 }

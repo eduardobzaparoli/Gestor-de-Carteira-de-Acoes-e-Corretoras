@@ -78,10 +78,10 @@ O sistema SHALL disponibilizar `POST /api/auth/login` para autenticar um usuári
 - **THEN** o sistema responde com status `401` e código `ACCOUNT_INACTIVE`, sem emitir token
 
 ### Requirement: Autenticação stateless por JWT
-O sistema MUST validar assinatura, expiração, identidade e estado ativo da conta de tokens JWT em requisições protegidas, sem criar sessão no servidor. O papel persistido atualmente para a conta MUST ser a fonte de verdade para autorização, inclusive quando divergir do papel registrado em um token válido emitido anteriormente.
+O sistema MUST validar assinatura, expiração, emissor, identidade e estado ativo da conta de tokens JWT em requisições protegidas, sem criar sessão no servidor. Todo token emitido MUST identificar o emissor configurado, e somente tokens desse emissor SHALL ser aceitos. O papel persistido atualmente para a conta MUST ser a fonte de verdade para autorização, inclusive quando divergir do papel registrado em um token válido emitido anteriormente.
 
 #### Scenario: Token válido
-- **WHEN** uma requisição protegida apresenta um token Bearer válido e não expirado de uma conta ativa
+- **WHEN** uma requisição protegida apresenta um token Bearer válido, não expirado e emitido pelo emissor configurado para uma conta ativa
 - **THEN** o sistema autentica a identidade e disponibiliza seu identificador e o papel atual da conta durante a requisição
 
 #### Scenario: Papel alterado após a emissão do token
@@ -101,8 +101,12 @@ O sistema MUST validar assinatura, expiração, identidade e estado ativo da con
 - **THEN** o sistema rejeita o acesso com status `401` e resposta JSON
 
 #### Scenario: Token inválido ou expirado
-- **WHEN** uma requisição protegida apresenta token adulterado, malformado ou expirado
+- **WHEN** uma requisição protegida apresenta token com assinatura adulterada, malformado ou expirado
 - **THEN** o sistema rejeita o acesso com status `401` e resposta JSON sem revelar detalhes criptográficos
+
+#### Scenario: Token de outro emissor
+- **WHEN** uma requisição protegida apresenta token corretamente assinado e não expirado cujo emissor difere do emissor configurado
+- **THEN** o sistema rejeita o acesso com status `401` e resposta JSON sem revelar detalhes da validação
 
 #### Scenario: Token emitido antes da desativação
 - **WHEN** uma requisição protegida apresenta token válido de uma conta que foi desativada após a emissão

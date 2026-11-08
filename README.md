@@ -295,6 +295,7 @@ No `.env`, substitua no mínimo:
 DB_USERNAME=postgres
 DB_PASSWORD=escolha-uma-senha-local-forte
 JWT_SECRET=escolha-um-segredo-local-com-pelo-menos-32-bytes
+JWT_ISSUER=bom-investidor-local
 ```
 
 Para dados reais de mercado:
@@ -421,6 +422,7 @@ Requer JDK 17. Na raiz do projeto:
 ```powershell
 $env:SPRING_PROFILES_ACTIVE = "h2"
 $env:JWT_SECRET = "seu-segredo-local-com-pelo-menos-32-bytes"
+$env:JWT_ISSUER = "bom-investidor-local"
 $env:CORS_ALLOWED_ORIGINS = "http://localhost:5173"
 .\mvnw.cmd spring-boot:run
 ```
@@ -443,6 +445,7 @@ $env:DB_URL = "jdbc:postgresql://localhost:5432/bominvestidor"
 $env:DB_USERNAME = "postgres"
 $env:DB_PASSWORD = "sua-senha-local"
 $env:JWT_SECRET = "seu-segredo-local-com-pelo-menos-32-bytes"
+$env:JWT_ISSUER = "bom-investidor-local"
 $env:CORS_ALLOWED_ORIGINS = "http://localhost:5173"
 $env:TWELVE_DATA_API_KEY = "sua-chave-twelve-data"
 $env:ALPHA_VANTAGE_API_KEY = "sua-chave-alpha-vantage"
@@ -525,6 +528,7 @@ Todos usam Flyway e `ddl-auto=validate`: migrations controlam o esquema e o Hibe
 | `DB_PASSWORD`              | Para PostgreSQL        | Senha sem valor padrão.                |
 | `POSTGRES_DB`              | No Compose             | Nome do banco; padrão `bominvestidor`. |
 | `JWT_SECRET`               | Sim                    | Segredo com pelo menos 32 bytes.       |
+| `JWT_ISSUER`               | Sim                    | Identificador do emissor dos tokens.   |
 | `JWT_EXPIRATION`           | Não                    | Duração ISO-8601; padrão `PT1H`.       |
 | `CORS_ALLOWED_ORIGINS`     | Para frontend separado | Origens separadas por vírgula.         |
 | `FRONTEND_PORT`            | Não                    | Porta do frontend; padrão `5173`.      |
@@ -626,6 +630,19 @@ Authorization: Bearer <token>
 ```
 
 A API não mantém sessão HTTP. Papéis e contas ativas continuam sendo validados.
+
+O JWT contém somente claims técnicos (`iss`, `sub`, `iat`, `exp`) e o papel necessário à autorização. Senhas, hashes, e-mail e informações financeiras não são incluídos: o payload pode ser decodificado por quem possui o token, mesmo que sua assinatura impeça alterações válidas.
+
+### Roteiro manual de autenticação
+
+1. Faça login com credenciais válidas e confirme `200`, `tokenType: Bearer` e `expiresAt`.
+2. Chame `GET /api/auth/me` com `Authorization: Bearer <token>` e confirme `200`.
+3. Repita sem o cabeçalho, com token malformado ou alterando um caractere da assinatura e confirme `401` em JSON.
+4. Use senha incorreta e confirme `401 INVALID_CREDENTIALS`.
+5. Use um token expirado e confirme `401`; esse cenário também é coberto automaticamente pela suíte de integração.
+6. Com um investidor autenticado, chame uma rota `/api/admin/**` e confirme `403` em JSON.
+
+`401 Unauthorized` significa que não há uma identidade válida para a requisição. `403 Forbidden` significa que a identidade é válida, mas não possui o papel necessário. Após a adoção de `JWT_ISSUER`, tokens emitidos anteriormente não possuem o claim `iss` e exigem novo login.
 
 ### Endpoints por domínio
 

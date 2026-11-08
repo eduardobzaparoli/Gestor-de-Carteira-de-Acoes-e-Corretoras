@@ -29,6 +29,7 @@ public class JwtTokenService {
 		Instant issuedAt = clock.instant();
 		Instant expiresAt = issuedAt.plus(properties.expiration());
 		JwtClaimsSet claims = JwtClaimsSet.builder()
+				.issuer(properties.issuer())
 				.subject(user.id().toString())
 				.issuedAt(issuedAt)
 				.expiresAt(expiresAt)
