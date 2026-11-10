@@ -2,7 +2,9 @@ package com.bominvestidor.spring.service.admin;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -17,11 +19,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.bominvestidor.spring.domain.user.UserRole;
 import com.bominvestidor.spring.domain.user.UserStatus;
 import com.bominvestidor.spring.dto.admin.AdminUserCreateRequest;
+import com.bominvestidor.spring.dto.admin.AdminUserPasswordRequest;
 import com.bominvestidor.spring.dto.admin.AdminUserUpdateRequest;
 import com.bominvestidor.spring.entity.user.UserEntity;
 import com.bominvestidor.spring.exception.AdminUserConflictException;
@@ -68,9 +72,37 @@ class AdminUserServiceTests {
 
 		AdminUserConflictException exception = assertThrows(AdminUserConflictException.class,
 				() -> service.update(UUID.randomUUID(), adminId,
-						new AdminUserUpdateRequest("Admin", "admin@example.com", "password123", UserRole.INVESTOR)));
+						new AdminUserUpdateRequest("Admin", "admin@example.com", UserRole.INVESTOR)));
 
 		assertEquals("LAST_ACTIVE_ADMIN", exception.getCode());
+	}
+
+	@Test
+	void preservesPasswordWhenUpdatingAdministrativeProfile() {
+		UUID userId = UUID.randomUUID();
+		UserEntity investor = user(userId, UserRole.INVESTOR, UserStatus.ACTIVE);
+		when(users.findById(userId)).thenReturn(Optional.of(investor));
+		when(users.saveAndFlush(investor)).thenReturn(investor);
+
+		service.update(UUID.randomUUID(), userId,
+				new AdminUserUpdateRequest("Updated", "updated@example.com", UserRole.INVESTOR));
+
+		assertEquals("hash", investor.getPasswordHash());
+		verifyNoInteractions(passwordEncoder);
+	}
+
+	@Test
+	void resetsPasswordWithBcryptHash() {
+		UUID userId = UUID.randomUUID();
+		UserEntity investor = user(userId, UserRole.INVESTOR, UserStatus.ACTIVE);
+		BCryptPasswordEncoder bcrypt = new BCryptPasswordEncoder();
+		AdminUserService passwordService = new AdminUserService(users, new UserDataNormalizer(), bcrypt,
+				Clock.fixed(NOW, ZoneOffset.UTC));
+		when(users.findById(userId)).thenReturn(Optional.of(investor));
+
+		passwordService.resetPassword(userId, new AdminUserPasswordRequest("new-password"));
+
+		assertTrue(bcrypt.matches("new-password", investor.getPasswordHash()));
 	}
 
 	@Test

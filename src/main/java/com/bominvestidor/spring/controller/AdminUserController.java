@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.bominvestidor.spring.dto.admin.AdminUserCreateRequest;
+import com.bominvestidor.spring.dto.admin.AdminUserPasswordRequest;
 import com.bominvestidor.spring.dto.admin.AdminUserResponse;
 import com.bominvestidor.spring.dto.admin.AdminUserUpdateRequest;
 import com.bominvestidor.spring.service.admin.AdminUserService;
@@ -25,6 +27,7 @@ import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/admin/users")
+@PreAuthorize("hasRole('ADMIN')")
 public class AdminUserController {
 
 	private final AdminUserService adminUserService;
@@ -52,6 +55,13 @@ public class AdminUserController {
 	public AdminUserResponse update(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID userId,
 			@Valid @RequestBody AdminUserUpdateRequest request) {
 		return adminUserService.update(UUID.fromString(jwt.getSubject()), userId, request);
+	}
+
+	@PutMapping("/{userId}/password")
+	public ResponseEntity<Void> resetPassword(@PathVariable UUID userId,
+			@Valid @RequestBody AdminUserPasswordRequest request) {
+		adminUserService.resetPassword(userId, request);
+		return ResponseEntity.noContent().build();
 	}
 
 	@DeleteMapping("/{userId}")

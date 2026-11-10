@@ -113,11 +113,14 @@ public class UserEntity {
 		return status;
 	}
 
-	public void update(String name, String email, String passwordHash, UserRole role) {
+	public void updateAdministrativeProfile(String name, String email, UserRole role) {
 		this.name = name;
 		this.email = email;
-		this.passwordHash = passwordHash;
 		this.role = role;
+	}
+
+	public void changePassword(String passwordHash) {
+		this.passwordHash = passwordHash;
 	}
 
 	public void updateProfile(String name, String email, String passwordHash) {

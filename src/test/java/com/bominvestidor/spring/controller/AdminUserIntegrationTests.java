@@ -1,5 +1,7 @@
 package com.bominvestidor.spring.controller;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -17,7 +19,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -52,6 +56,7 @@ class AdminUserIntegrationTests {
 	@Autowired private UserRepository users;
 	@Autowired private AuthService authService;
 	@Autowired private PasswordEncoder passwordEncoder;
+	@Autowired private AdminUserController adminUserController;
 
 	@BeforeEach
 	void clearData() {
@@ -83,12 +88,28 @@ class AdminUserIntegrationTests {
 				.andExpect(jsonPath("$[?(@.id == '" + investorId + "')]").exists());
 
 		Map<String, Object> update = Map.of("name", "Updated Investor", "email", "updated@example.com",
-				"password", "updated-password", "role", "INVESTOR");
+				"role", "INVESTOR");
 		mockMvc.perform(put("/api/admin/users/{id}", investorId).header("Authorization", bearer(adminToken))
 				.contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(update)))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.name").value("Updated Investor"))
-				.andExpect(jsonPath("$.email").value("updated@example.com"));
+				.andExpect(jsonPath("$.email").value("updated@example.com"))
+				.andExpect(jsonPath("$.password").doesNotExist())
+				.andExpect(jsonPath("$.passwordHash").doesNotExist());
+
+		mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(Map.of("email", "updated@example.com", "password", "password123"))))
+				.andExpect(status().isOk());
+		mockMvc.perform(put("/api/admin/users/{id}/password", investorId).header("Authorization", bearer(adminToken))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(Map.of("password", "updated-password"))))
+				.andExpect(status().isNoContent());
+		mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(Map.of("email", "updated@example.com", "password", "password123"))))
+				.andExpect(status().isUnauthorized());
+		mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(Map.of("email", "updated@example.com", "password", "updated-password"))))
+				.andExpect(status().isOk());
 	}
 
 	@Test
@@ -125,7 +146,7 @@ class AdminUserIntegrationTests {
 		mockMvc.perform(delete("/api/admin/users/{id}", admin.getId()).header("Authorization", bearer(adminToken)))
 				.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("CANNOT_DEACTIVATE_SELF"));
 
-		Map<String, Object> demote = Map.of("name", "Admin", "email", "admin@example.com", "password", "password123", "role", "INVESTOR");
+		Map<String, Object> demote = Map.of("name", "Admin", "email", "admin@example.com", "role", "INVESTOR");
 		mockMvc.perform(put("/api/admin/users/{id}", admin.getId()).header("Authorization", bearer(adminToken))
 				.contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(demote)))
 				.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("LAST_ACTIVE_ADMIN"));
@@ -138,7 +159,7 @@ class AdminUserIntegrationTests {
 		String administratorToken = authService.login(new LoginRequest("administrator@example.com", "password123")).token();
 
 		Map<String, Object> demote = Map.of("name", "Administrator", "email", "administrator@example.com",
-				"password", "password123", "role", "INVESTOR");
+				"role", "INVESTOR");
 		mockMvc.perform(put("/api/admin/users/{id}", administrator.getId()).header("Authorization", bearer(actorToken))
 				.contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(demote)))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.role").value("INVESTOR"));
@@ -157,13 +178,33 @@ class AdminUserIntegrationTests {
 		String investorToken = authService.login(new LoginRequest("investor@example.com", "password123")).token();
 
 		Map<String, Object> promote = Map.of("name", "Investor", "email", "investor@example.com",
-				"password", "password123", "role", "ADMIN");
+				"role", "ADMIN");
 		mockMvc.perform(put("/api/admin/users/{id}", investor.getId()).header("Authorization", bearer(actorToken))
 				.contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(promote)))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.role").value("ADMIN"));
 
 		mockMvc.perform(get("/api/admin/users").header("Authorization", bearer(investorToken)))
 				.andExpect(status().isOk());
+	}
+
+	@Test
+	@WithMockUser(roles = "ADMIN")
+	void methodSecurityAllowsAdministrators() {
+		assertDoesNotThrow(() -> adminUserController.findAll());
+	}
+
+	@Test
+	@WithMockUser(roles = "INVESTOR")
+	void methodSecurityRejectsInvestors() throws Exception {
+		assertThrows(AccessDeniedException.class, () -> adminUserController.findAll());
+		mockMvc.perform(get("/api/admin/users"))
+				.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
+	}
+
+	@Test
+	void administrationRequiresAuthentication() throws Exception {
+		mockMvc.perform(get("/api/admin/users"))
+				.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
 	}
 
 	private String administratorToken(String email) {

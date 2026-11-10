@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.bominvestidor.spring.domain.user.UserRole;
 import com.bominvestidor.spring.domain.user.UserStatus;
 import com.bominvestidor.spring.dto.admin.AdminUserCreateRequest;
+import com.bominvestidor.spring.dto.admin.AdminUserPasswordRequest;
 import com.bominvestidor.spring.dto.admin.AdminUserResponse;
 import com.bominvestidor.spring.dto.admin.AdminUserUpdateRequest;
 import com.bominvestidor.spring.entity.user.UserEntity;
@@ -52,7 +53,8 @@ public class AdminUserService {
 	public AdminUserResponse create(AdminUserCreateRequest request) {
 		String name = normalizer.normalizeName(request.name());
 		String email = normalizer.normalizeEmail(request.email());
-		validate(name, email, request.password(), request.role());
+		validateProfile(name, email, request.role());
+		validatePassword(request.password());
 		if (userRepository.existsByEmail(email)) {
 			throw new DuplicateEmailException();
 		}
@@ -69,13 +71,21 @@ public class AdminUserService {
 		UserEntity user = findEntity(userId);
 		String name = normalizer.normalizeName(request.name());
 		String email = normalizer.normalizeEmail(request.email());
-		validate(name, email, request.password(), request.role());
+		validateProfile(name, email, request.role());
 		if (!user.getEmail().equals(email) && userRepository.existsByEmail(email)) {
 			throw new DuplicateEmailException();
 		}
 		assertCanKeepAdministrativeContinuity(actorId, user, request.role(), user.getStatus());
-		user.update(name, email, passwordEncoder.encode(request.password()), request.role());
+		user.updateAdministrativeProfile(name, email, request.role());
 		return response(userRepository.saveAndFlush(user));
+	}
+
+	@Transactional
+	public void resetPassword(UUID userId, AdminUserPasswordRequest request) {
+		validatePassword(request.password());
+		UserEntity user = findEntity(userId);
+		user.changePassword(passwordEncoder.encode(request.password()));
+		userRepository.saveAndFlush(user);
 	}
 
 	@Transactional
@@ -117,7 +127,7 @@ public class AdminUserService {
 		}
 	}
 
-	private void validate(String name, String email, String password, UserRole role) {
+	private void validateProfile(String name, String email, UserRole role) {
 		if (name == null || name.isBlank()) {
 			throw new InvalidUserDataException("name", "Name is required");
 		}
@@ -127,11 +137,14 @@ public class AdminUserService {
 		if (email == null || email.isBlank() || !email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$") || email.length() > 254) {
 			throw new InvalidUserDataException("email", "Email must be valid and have at most 254 characters");
 		}
-		if (password == null || password.length() < 8 || password.length() > 72) {
-			throw new InvalidUserDataException("password", "Password must have between 8 and 72 characters");
-		}
 		if (role == null) {
 			throw new InvalidUserDataException("role", "Role is required");
+		}
+	}
+
+	private void validatePassword(String password) {
+		if (password == null || password.length() < 8 || password.length() > 72) {
+			throw new InvalidUserDataException("password", "Password must have between 8 and 72 characters");
 		}
 	}
 
