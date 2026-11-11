@@ -644,18 +644,30 @@ O JWT contém somente claims técnicos (`iss`, `sub`, `iat`, `exp`) e o papel ne
 
 `401 Unauthorized` significa que não há uma identidade válida para a requisição. `403 Forbidden` significa que a identidade é válida, mas não possui o papel necessário. Após a adoção de `JWT_ISSUER`, tokens emitidos anteriormente não possuem o claim `iss` e exigem novo login.
 
+### Matriz de acesso
+
+| Perfil     | Acesso permitido                                                                 | Acesso negado                                         |
+| ---------- | -------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Público    | Cadastro, login, documentação OpenAPI e health check.                            | Dados de usuários, carteiras e demais dados privados. |
+| `INVESTOR` | Próprio perfil, corretoras, ativos, carteiras, lançamentos e proventos próprios. | Administração e recursos financeiros de terceiros.    |
+| `ADMIN`    | Cadastro, consulta, edição, estado, papel e redefinição de senha dos usuários.   | Informações financeiras privadas dos investidores.    |
+
+A autorização é conferida tanto na configuração HTTP quanto nos controllers. O papel e o estado atual da conta são recarregados a cada requisição autenticada; portanto, promoção, rebaixamento ou desativação afetam também tokens emitidos anteriormente.
+
+Na administração, `PUT /api/admin/users/{id}` altera somente nome, e-mail e papel, preservando a senha atual. A redefinição é deliberadamente separada em `PUT /api/admin/users/{id}/password`, recebe apenas `password` entre 8 e 72 caracteres e retorna `204 No Content`. Respostas administrativas nunca incluem senha ou hash.
+
 ### Endpoints por domínio
 
-| Domínio       | Endpoints principais                                                                            |
-| ------------- | ----------------------------------------------------------------------------------------------- |
-| Autenticação  | `POST /api/auth/register`, `POST /api/auth/login`, `GET/PUT /api/auth/me`                       |
-| Administração | `GET/POST /api/admin/users`, `GET/PUT/DELETE /api/admin/users/{id}`, `POST .../{id}/reactivate` |
-| Corretoras    | consultas por CEP e CNPJ, `GET/POST /api/brokerages`, `DELETE /api/brokerages/{id}`             |
-| Ativos        | pesquisa, catálogo, cotação, atualização, câmbio e exclusão em `/api/assets`                    |
-| Carteiras     | `GET/POST /api/portfolios`, `GET/PUT/DELETE /api/portfolios/{id}`                               |
-| Lançamentos   | `GET/POST .../transactions`, `PUT/DELETE .../transactions/{id}`                                 |
-| Indicadores   | posições, valorização, evolução e câmbio sob `/api/portfolios/{id}`                             |
-| Proventos     | candidatos, confirmações, manual, histórico, resumo e cancelamento sob `.../income-events`      |
+| Domínio       | Endpoints principais                                                                                                     |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Autenticação  | `POST /api/auth/register`, `POST /api/auth/login`, `GET/PUT /api/auth/me`                                                |
+| Administração | `GET/POST /api/admin/users`, `GET/PUT/DELETE /api/admin/users/{id}`, `PUT .../{id}/password`, `POST .../{id}/reactivate` |
+| Corretoras    | consultas por CEP e CNPJ, `GET/POST /api/brokerages`, `DELETE /api/brokerages/{id}`                                      |
+| Ativos        | pesquisa, catálogo, cotação, atualização, câmbio e exclusão em `/api/assets`                                             |
+| Carteiras     | `GET/POST /api/portfolios`, `GET/PUT/DELETE /api/portfolios/{id}`                                                        |
+| Lançamentos   | `GET/POST .../transactions`, `PUT/DELETE .../transactions/{id}`                                                          |
+| Indicadores   | posições, valorização, evolução e câmbio sob `/api/portfolios/{id}`                                                      |
+| Proventos     | candidatos, confirmações, manual, histórico, resumo e cancelamento sob `.../income-events`                               |
 
 Use o Swagger como fonte do formato exato dos DTOs e parâmetros.
 

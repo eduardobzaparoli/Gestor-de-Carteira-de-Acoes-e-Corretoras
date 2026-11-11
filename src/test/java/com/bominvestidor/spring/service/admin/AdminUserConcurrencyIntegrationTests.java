@@ -125,7 +125,7 @@ class AdminUserConcurrencyIntegrationTests {
 	}
 
 	private AdminUserUpdateRequest investorUpdate(String email) {
-		return new AdminUserUpdateRequest("Admin", email, "password123", UserRole.INVESTOR);
+		return new AdminUserUpdateRequest("Admin", email, UserRole.INVESTOR);
 	}
 
 	private void clearData() {

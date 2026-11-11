@@ -1,5 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, ShieldCheck, UserCheck, Users } from "lucide-react";
+import {
+  KeyRound,
+  Plus,
+  Search,
+  ShieldCheck,
+  UserCheck,
+  Users,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   Badge,
@@ -42,6 +49,8 @@ export function AdminUsersPage() {
   const [form, setForm] = useState<UserForm>(emptyForm);
   const [passwordVisibilityResetKey, setPasswordVisibilityResetKey] =
     useState(0);
+  const [passwordTarget, setPasswordTarget] = useState<AdminUser | null>(null);
+  const [newPassword, setNewPassword] = useState("");
   const [action, setAction] = useState<{
     user: AdminUser;
     kind: "deactivate" | "reactivate";
@@ -54,12 +63,36 @@ export function AdminUsersPage() {
     mutationFn: () =>
       api<AdminUser>(
         editing ? `/api/admin/users/${editing.id}` : "/api/admin/users",
-        { method: editing ? "PUT" : "POST", body: JSON.stringify(form) },
+        {
+          method: editing ? "PUT" : "POST",
+          body: JSON.stringify(
+            editing
+              ? { name: form.name, email: form.email, role: form.role }
+              : form,
+          ),
+        },
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       setEditing(undefined);
+      setForm(emptyForm);
       notify(editing ? "Usuário atualizado." : "Usuário criado.");
+    },
+  });
+  const resetPassword = useMutation({
+    mutationFn: () =>
+      api<void>(`/api/admin/users/${passwordTarget?.id}/password`, {
+        method: "PUT",
+        body: JSON.stringify({ password: newPassword }),
+      }),
+    onSuccess: () => {
+      setPasswordTarget(null);
+      setNewPassword("");
+      notify("Senha redefinida.");
+    },
+    onError: () => {
+      setNewPassword("");
+      setPasswordVisibilityResetKey((current) => current + 1);
     },
   });
   const changeStatus = useMutation({
@@ -108,7 +141,6 @@ export function AdminUsersPage() {
     setForm(emptyForm);
   };
   const openEdit = (user: AdminUser) => {
-    setPasswordVisibilityResetKey((current) => current + 1);
     setEditing(user);
     setForm({
       name: user.name,
@@ -116,6 +148,22 @@ export function AdminUsersPage() {
       password: "",
       role: user.role,
     });
+  };
+  const closeEditor = () => {
+    setEditing(undefined);
+    setForm(emptyForm);
+    save.reset();
+  };
+  const openPasswordReset = (user: AdminUser) => {
+    setPasswordVisibilityResetKey((current) => current + 1);
+    setPasswordTarget(user);
+    setNewPassword("");
+    resetPassword.reset();
+  };
+  const closePasswordReset = () => {
+    setPasswordTarget(null);
+    setNewPassword("");
+    resetPassword.reset();
   };
   return (
     <>
@@ -236,6 +284,13 @@ export function AdminUsersPage() {
                           Editar
                         </Button>
                         <Button
+                          variant="secondary"
+                          onClick={() => openPasswordReset(user)}
+                        >
+                          <KeyRound size={15} />
+                          Senha
+                        </Button>
+                        <Button
                           variant={
                             user.status === "ACTIVE" ? "danger" : "secondary"
                           }
@@ -262,7 +317,7 @@ export function AdminUsersPage() {
       </Card>
       <Dialog
         open={editing !== undefined}
-        onClose={() => setEditing(undefined)}
+        onClose={closeEditor}
         title={editing ? "Editar usuário" : "Novo usuário"}
       >
         <form
@@ -289,21 +344,19 @@ export function AdminUsersPage() {
               maxLength={254}
               required
             />
-            <Field
-              label="Senha"
-              type="password"
-              visibilityResetKey={passwordVisibilityResetKey}
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              minLength={8}
-              maxLength={72}
-              required
-              hint={
-                editing
-                  ? "Informe a senha que ficará ativa após a edição."
-                  : "Entre 8 e 72 caracteres."
-              }
-            />
+            {!editing && (
+              <Field
+                label="Senha"
+                type="password"
+                visibilityResetKey={passwordVisibilityResetKey}
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                minLength={8}
+                maxLength={72}
+                required
+                hint="Entre 8 e 72 caracteres."
+              />
+            )}
             <SelectField
               label="Papel"
               value={form.role}
@@ -319,19 +372,62 @@ export function AdminUsersPage() {
             <div className="error-state">{apiMessage(save.error)}</div>
           )}
           <div className="form-actions">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setEditing(undefined)}
-            >
+            <Button type="button" variant="ghost" onClick={closeEditor}>
               Cancelar
             </Button>
             <Button
               type="submit"
               loading={save.isPending}
-              disabled={!form.name || !form.email || form.password.length < 8}
+              disabled={
+                !form.name ||
+                !form.email ||
+                (!editing && form.password.length < 8)
+              }
             >
               {editing ? "Salvar alterações" : "Criar usuário"}
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+      <Dialog
+        open={Boolean(passwordTarget)}
+        onClose={closePasswordReset}
+        title="Redefinir senha"
+      >
+        <form
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            resetPassword.mutate();
+          }}
+        >
+          <p>
+            Defina uma nova senha para <strong>{passwordTarget?.name}</strong>.
+          </p>
+          <Field
+            label="Nova senha"
+            type="password"
+            visibilityResetKey={passwordVisibilityResetKey}
+            value={newPassword}
+            onChange={(event) => setNewPassword(event.target.value)}
+            minLength={8}
+            maxLength={72}
+            required
+            hint="Entre 8 e 72 caracteres."
+          />
+          {resetPassword.isError && (
+            <div className="error-state">{apiMessage(resetPassword.error)}</div>
+          )}
+          <div className="form-actions">
+            <Button type="button" variant="ghost" onClick={closePasswordReset}>
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              loading={resetPassword.isPending}
+              disabled={newPassword.length < 8}
+            >
+              Redefinir senha
             </Button>
           </div>
         </form>
