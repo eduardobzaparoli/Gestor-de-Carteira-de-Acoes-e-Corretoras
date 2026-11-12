@@ -691,8 +691,31 @@ Clientes devem tomar decisões pelo campo `code`, não pelo texto da mensagem.
 ### Backend com H2
 
 ```powershell
+.\mvnw.cmd -Prelease-h2 clean verify
+```
+
+Esse comando executa os testes, gera o relatório JaCoCo e verifica os pisos de cobertura do backend:
+
+- linhas: 92%;
+- ramos: 68%.
+
+A linha de base que originou esses limites foi de 92,34% de linhas e 68,27% de ramos. Os valores foram arredondados para baixo para evitar oscilações de precisão sem permitir regressão relevante.
+
+O relatório navegável fica em `target/site/jacoco/index.html`. O mesmo diretório contém `jacoco.xml` e `jacoco.csv`. Linhas verdes foram executadas, linhas vermelhas não foram executadas e linhas amarelas possuem decisões parcialmente exercitadas.
+
+Para executar somente os testes durante o desenvolvimento, sem chegar à geração e à verificação do relatório:
+
+```powershell
 .\mvnw.cmd -Prelease-h2 test
 ```
+
+Para comprovar que o portão reprova uma cobertura abaixo do limite, é possível aplicar um valor temporário sem editar o projeto:
+
+```powershell
+.\mvnw.cmd -Prelease-h2 verify "-Djacoco.minimum.branch.coverage=1.00"
+```
+
+Esse comando deve falhar no `jacoco:check`. Execute novamente o comando normal depois da demonstração. Os limites versionados só devem aumentar após testes que protejam comportamentos relevantes; não reduza os valores nem exclua classes apenas para fazer o build passar.
 
 ### Backend com PostgreSQL
 
@@ -702,7 +725,7 @@ Use apenas um banco vazio e descartável:
 $env:DB_URL = "jdbc:postgresql://localhost:5432/bom_investidor_test"
 $env:DB_USERNAME = "bom_investidor_test"
 $env:DB_PASSWORD = "senha-exclusiva-de-teste"
-.\mvnw.cmd -Prelease-postgres test
+.\mvnw.cmd -Prelease-postgres clean verify
 ```
 
 Nunca aponte esse gate para dados pessoais ou de produção.
@@ -732,8 +755,10 @@ Os testes usam relógios controlados e dublês determinísticos. Chamadas reais 
 O GitHub Actions executa em pull requests e pushes para `dev`:
 
 1. formatação, lint, testes e build do frontend;
-2. testes backend com H2;
-3. testes de integração com PostgreSQL.
+2. testes e cobertura backend com H2;
+3. testes, migrações e cobertura backend com PostgreSQL.
+
+Os dois jobs backend disponibilizam o relatório JaCoCo como artefato, inclusive quando o portão de cobertura falha.
 
 Para corrigir uma falha do Prettier:
 
