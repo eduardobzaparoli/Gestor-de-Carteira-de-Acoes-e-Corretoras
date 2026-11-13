@@ -4,8 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.Optional;
@@ -72,6 +74,7 @@ import com.bominvestidor.spring.exception.PortfolioIncomeEventConflictException;
 @EnabledIfSystemProperty(named = "runPostgresTests", matches = "true")
 @Import(PostgresPortfolioIntegrationTests.AssetProviderStubConfiguration.class)
 class PostgresPortfolioIntegrationTests {
+	private static final Instant NOW = Instant.parse("2026-11-11T12:00:00Z");
 
 	@Autowired private AuthService authService;
 	@Autowired private PortfolioService portfolioService;
@@ -87,9 +90,11 @@ class PostgresPortfolioIntegrationTests {
 	@Autowired private PortfolioMarketValuationService valuationService;
 	@Autowired private PortfolioIncomeEventService incomeEventService;
 	@Autowired private PortfolioValueEvolutionService evolutionService;
+	@Autowired private Clock clock;
 
 	@Test
 	void initializesSchemaAndSupportsPortfolioLifecycle() {
+		LocalDate today = LocalDate.now(clock);
 		String email = "postgres-portfolio-" + UUID.randomUUID() + "@example.com";
 		UserEntity user = null;
 		BrokerageEntity brokerage = null;
@@ -118,7 +123,7 @@ class PostgresPortfolioIntegrationTests {
 			assertEquals(persistedRowsBefore, persistedRows());
 
 			var registered = registeredAssetService.register(userId, new RegisteredAssetCreateRequest(assets.get(0).selectionId()));
-			transactionService.create(userId, portfolioId, new PortfolioTransactionCreateRequest(registered.id(), TransactionType.BUY, LocalDate.now().minusDays(1), new BigDecimal("2"),
+			transactionService.create(userId, portfolioId, new PortfolioTransactionCreateRequest(registered.id(), TransactionType.BUY, today.minusDays(1), new BigDecimal("2"),
 					new BigDecimal("35.10"), null));
 			assertEquals(1, jdbcTemplate.queryForObject(
 					"select count(*) from portfolio_transactions where portfolio_id = ?", Integer.class, portfolioId));
@@ -136,17 +141,17 @@ class PostgresPortfolioIntegrationTests {
 			assertEquals("BRL", valuation.currencySummaries().get(0).currency());
 			var evolution = evolutionService.find(userId, portfolioId);
 			assertEquals(2, evolution.size());
-			assertEquals(LocalDate.now().minusDays(1), evolution.get(0).date());
+			assertEquals(today.minusDays(1), evolution.get(0).date());
 			assertEquals(0, new BigDecimal("70.20").compareTo(evolution.get(0).investedValue()));
 			assertEquals(0, new BigDecimal("70.20").compareTo(evolution.get(1).marketValue()));
 			assertEquals(List.of(), evolutionPersistenceTables());
 
 			var effectiveIncome = incomeEventService.createManual(userId, portfolioId, new ManualIncomeEventCreateRequest(
 					"PETR4", IncomeEventType.DIVIDEND,
-					LocalDate.now(), new BigDecimal("7.50"), null, null, null, "PostgreSQL test"));
+					today, new BigDecimal("7.50"), null, null, null, "PostgreSQL test"));
 			var pendingIncome = incomeEventService.createManual(userId, portfolioId, new ManualIncomeEventCreateRequest(
 					"PETR4", IncomeEventType.DISTRIBUTION,
-					LocalDate.now().plusDays(5), new BigDecimal("3.00"), null, null, null, null));
+					today.plusDays(5), new BigDecimal("3.00"), null, null, null, null));
 			assertEquals(IncomeEventStatus.EFFECTIVE, effectiveIncome.status());
 			assertEquals(IncomeEventStatus.PENDING, pendingIncome.status());
 			assertEquals(2, jdbcTemplate.queryForObject("select count(*) from portfolio_income_events where portfolio_id = ?", Integer.class, portfolioId));
@@ -154,7 +159,7 @@ class PostgresPortfolioIntegrationTests {
 			assertEquals(0, new BigDecimal("7.50").compareTo(incomeEventService.summary(userId, portfolioId).consolidatedReceivedAmount()));
 			assertThrows(PortfolioIncomeEventConflictException.class, () -> incomeEventService.createManual(userId, createdPortfolioId,
 					new ManualIncomeEventCreateRequest("PETR4", IncomeEventType.DIVIDEND,
-							LocalDate.now(), new BigDecimal("7.50"), null, null, null, "duplicate")));
+							today, new BigDecimal("7.50"), null, null, null, "duplicate")));
 			incomeEventService.cancel(userId, portfolioId, pendingIncome.id());
 			assertEquals(IncomeEventStatus.CANCELLED, incomeEventService.findAll(userId, portfolioId).get(0).status());
 			assertEquals(List.of(), positionPersistenceTables());
@@ -237,7 +242,7 @@ class PostgresPortfolioIntegrationTests {
 	}
 
 	private BrokerageEntity saveBrokerage(UserEntity owner) {
-		Instant now = Instant.now();
+		Instant now = clock.instant();
 		UUID id = UUID.randomUUID();
 		String suffix = id.toString().replace("-", "");
 		return brokerageRepository.saveAndFlush(new BrokerageEntity(id, owner, "PostgreSQL " + suffix, "postgresql " + suffix,
@@ -247,6 +252,12 @@ class PostgresPortfolioIntegrationTests {
 
 	@TestConfiguration(proxyBeanMethods = false)
 	static class AssetProviderStubConfiguration {
+		@Bean
+		@Primary
+		Clock clock() {
+			return Clock.fixed(NOW, ZoneOffset.UTC);
+		}
+
 		@Bean
 		@Primary
 		AssetSearchStrategyResolver assetSearchStrategyResolver() {

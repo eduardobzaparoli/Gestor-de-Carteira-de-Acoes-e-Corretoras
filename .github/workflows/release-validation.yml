@@ -29,7 +29,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17', cache: maven }
-      - run: ./mvnw -B -Prelease-h2 test
+      - run: ./mvnw -B -Prelease-h2 clean verify
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jacoco-h2
+          path: target/site/jacoco/
+          if-no-files-found: warn
   postgres:
     runs-on: ubuntu-latest
     services:
@@ -48,4 +54,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17', cache: maven }
-      - run: ./mvnw -B -Prelease-postgres test
+      - run: ./mvnw -B -Prelease-postgres clean verify
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jacoco-postgres
+          path: target/site/jacoco/
+          if-no-files-found: warn
